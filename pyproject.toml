@@ -1,0 +1,38 @@
+[project]
+name = "nn-expt"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "gizmrkv", email = "gizmrkv@gmail.com" }
+]
+dependencies = [
+    "torch>=2.5.1",
+    "lightning>=2.4.0",
+    "torchvision>=0.20.1",
+    "wandb>=0.18.5",
+    "ipykernel>=6.29.5",
+    "matplotlib>=3.9.2",
+    "seaborn>=0.13.2",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nn_expt"]
+
+[tool.ruff]
+extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
+ignore = ["F401"]
