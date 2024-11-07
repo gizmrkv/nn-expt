@@ -7,44 +7,38 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 class TupleDataModule(L.LightningDataModule):
-    def __init__(self, tuple_size: int, range_size: int, batch_size: int):
+    def __init__(
+        self,
+        tuple_size: int,
+        range_size: int,
+        batch_size: int,
+        sample_size: int,
+        *,
+        num_workers: int = 4,
+    ):
         super().__init__()
         self.tuple_size = tuple_size
         self.range_size = range_size
         self.batch_size = batch_size
+        self.sample_size = sample_size
+        self.num_workers = num_workers
 
-        self.train_data = None
-        self.val_data = None
-        self.test_data = None
+        self.dataset: TensorDataset | None = None
 
     def setup(self, stage: str | None = None):
         if stage == "fit" or stage is None:
-            all_combinations = torch.tensor(
-                list(itertools.product(range(self.range_size), repeat=self.tuple_size))
+            data = torch.randint(
+                low=0,
+                high=self.range_size,
+                size=(self.sample_size, self.tuple_size),
             )
-            indices = torch.randperm(len(all_combinations))
-
-            train_size = int(len(all_combinations) * 0.8)
-            train_indices = indices[:train_size]
-            val_indices = indices[train_size:]
-
-            train_tensor = all_combinations[train_indices]
-            val_tensor = all_combinations[val_indices]
-
-            self.train_data = TensorDataset(train_tensor)
-            self.val_data = TensorDataset(val_tensor)
+            self.dataset = TensorDataset(data, data)
 
     def train_dataloader(self) -> DataLoader[Tuple[torch.Tensor, ...]]:
-        assert self.train_data is not None
+        assert self.dataset is not None
         return DataLoader(
-            self.train_data, batch_size=self.batch_size, shuffle=True, num_workers=4
+            self.dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
         )
-
-    def val_dataloader(self) -> DataLoader[Tuple[torch.Tensor, ...]]:
-        assert self.val_data is not None
-        return DataLoader(self.val_data, batch_size=self.batch_size, num_workers=4)
-
-    def test_dataloader(self) -> DataLoader[Tuple[torch.Tensor, ...]]:
-        assert self.test_data is not None
-        return DataLoader(self.test_data, batch_size=self.batch_size, num_workers=4)
-        return DataLoader(self.test_data, batch_size=self.batch_size, num_workers=4)

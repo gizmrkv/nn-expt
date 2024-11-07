@@ -14,6 +14,8 @@ dependencies = [
     "matplotlib>=3.9.2",
     "seaborn>=0.13.2",
     "moviepy>=1.0.3",
+    "gym>=0.26.2",
+    "pytorch-lightning>=2.4.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
