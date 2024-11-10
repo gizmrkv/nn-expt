@@ -12,6 +12,7 @@
     "cSpell.words": [
         "aggs",
         "arange",
+        "argmax",
         "asof",
         "Asof",
         "cbar",
@@ -25,6 +26,7 @@
         "elim",
         "figsize",
         "joblib",
+        "linears",
         "linewidth",
         "linewidths",
         "logvar",
@@ -47,6 +49,7 @@
         "triu",
         "unnest",
         "unpivot",
+        "unsqueeze",
         "viridis",
         "vmax",
         "vmin",

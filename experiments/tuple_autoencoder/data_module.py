@@ -1,7 +1,8 @@
 import itertools
-from typing import Tuple
+from typing import Sequence, Tuple
 
 import lightning as L
+import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -13,6 +14,7 @@ class TupleDataModule(L.LightningDataModule):
         range_size: int,
         batch_size: int,
         sample_size: int,
+        train_ratio: float = 0.8,
         *,
         num_workers: int = 4,
     ):
@@ -21,24 +23,55 @@ class TupleDataModule(L.LightningDataModule):
         self.range_size = range_size
         self.batch_size = batch_size
         self.sample_size = sample_size
+        self.train_ratio = train_ratio
         self.num_workers = num_workers
 
-        self.dataset: TensorDataset | None = None
+        self.train_dataset: TensorDataset | None = None
+        self.valid_dataset: TensorDataset | None = None
 
     def setup(self, stage: str | None = None):
         if stage == "fit" or stage is None:
-            data = torch.randint(
-                low=0,
-                high=self.range_size,
-                size=(self.sample_size, self.tuple_size),
+            combinations = list(
+                itertools.product(range(self.range_size), repeat=self.tuple_size)
             )
-            self.dataset = TensorDataset(data, data)
+            all_data = torch.tensor(combinations, dtype=torch.long)
+            indexes = torch.randperm(len(all_data))
+            all_data = all_data[indexes]
+
+            train_size = int(self.sample_size * self.train_ratio)
+            train_data = all_data[:train_size]
+            valid_data = all_data[train_size:]
+
+            if self.sample_size > len(train_data):
+                train_data = torch.cat(
+                    [
+                        train_data,
+                        train_data[
+                            torch.randint(
+                                high=len(train_data),
+                                size=(self.sample_size - len(train_data),),
+                            )
+                        ],
+                    ]
+                )
+
+            self.train_dataset = TensorDataset(train_data, train_data)
+            self.valid_dataset = TensorDataset(valid_data, valid_data)
 
     def train_dataloader(self) -> DataLoader[Tuple[torch.Tensor, ...]]:
-        assert self.dataset is not None
+        assert self.train_dataset is not None
         return DataLoader(
-            self.dataset,
+            self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
+            num_workers=self.num_workers,
+        )
+
+    def val_dataloader(self) -> DataLoader[Tuple[torch.Tensor, ...]]:
+        assert self.valid_dataset is not None
+        return DataLoader(
+            self.valid_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
             num_workers=self.num_workers,
         )
