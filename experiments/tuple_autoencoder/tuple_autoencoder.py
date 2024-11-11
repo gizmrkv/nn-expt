@@ -15,6 +15,7 @@ class TupleAutoencoder(L.LightningModule):
         *,
         lr: float = 0.001,
         weight_decay: float = 0.0,
+        reinforce_loss: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -22,6 +23,7 @@ class TupleAutoencoder(L.LightningModule):
         self.range_size = range_size
         self.lr = lr
         self.weight_decay = weight_decay
+        self.reinforce_loss = reinforce_loss
 
     def log_metrics(
         self,
@@ -49,16 +51,24 @@ class TupleAutoencoder(L.LightningModule):
             self.log(prefix + f"ent_{i:0{zero_pad}}", ent_i)
 
     def calc_loss(self, logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        loss = (
-            F.cross_entropy(
-                logits.view(-1, self.range_size),
-                target.view(-1),
-                reduction="none",
+        if self.reinforce_loss:
+            distr = Categorical(logits=logits)
+            action = distr.sample()
+            log_prob = distr.log_prob(action).sum(dim=-1)
+            reward = (action == target).float().mean(dim=-1)
+            loss = -(reward - reward.mean()) / (reward.std() + 1e-8) * log_prob
+        else:
+            loss = (
+                F.cross_entropy(
+                    logits.view(-1, self.range_size),
+                    target.view(-1),
+                    reduction="none",
+                )
+                .view(-1, self.tuple_size)
+                .mean(-1)
             )
-            .view(-1, self.tuple_size)
-            .mean(-1)
-        )
-        return loss
+
+        return loss.mean()
 
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
