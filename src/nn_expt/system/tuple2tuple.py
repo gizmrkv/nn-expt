@@ -2,12 +2,11 @@ from typing import Tuple
 
 import lightning as L
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
 
-class TupleAutoencoder(L.LightningModule):
+class Tuple2TupleSystem(L.LightningModule):
     def __init__(
         self,
         tuple_size: int,
@@ -76,7 +75,7 @@ class TupleAutoencoder(L.LightningModule):
         input, target = batch
         logits, _ = self(input)
         loss = self.calc_loss(logits, target)
-        self.log_metrics(loss, logits, target)
+        self.log_metrics(loss, logits, target, prog_bar=True, prefix="train/")
         return loss.mean()
 
     def validation_step(

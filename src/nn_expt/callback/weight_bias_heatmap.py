@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable
 
 import lightning as L
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
+from lightning.pytorch.loggers import WandbLogger
 from moviepy.editor import ImageSequenceClip
 
 
@@ -15,15 +16,17 @@ class WeightBiasHeatmap(L.Callback):
         bias_fn: Callable[[L.LightningModule], torch.Tensor] | None = None,
         *,
         save_dir: str | Path,
+        name: str,
         fps: int = 30,
     ):
         super().__init__()
         self.weight_fn = weight_fn
         self.bias_fn = bias_fn
-        self.save_dir = Path(save_dir)
-        self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.save_dir = Path(save_dir) / name
+        self.name = name
         self.fps = fps
-        self.image_paths: List[Path] = []
+
+        self.save_dir.mkdir(parents=True, exist_ok=True)
 
     def on_train_epoch_end(self, trainer: L.Trainer, pl_module: L.LightningModule):
         epoch = trainer.current_epoch
@@ -36,7 +39,7 @@ class WeightBiasHeatmap(L.Callback):
             weight = torch.cat([weight, bias], dim=1)
 
         plt.figure(figsize=(10, 8))
-        sns.heatmap(weight)
+        sns.heatmap(weight.cpu().numpy(), cmap="coolwarm", center=0)
         plt.xlabel("Feature Dimension")
         plt.ylabel("Output Dimension")
         plt.title(f"Weight/Bias Heatmap - Epoch {epoch}")
@@ -45,10 +48,13 @@ class WeightBiasHeatmap(L.Callback):
         plt.savefig(image_path)
         plt.close()
 
-        self.image_paths.append(image_path)
-
     def on_train_end(self, trainer: L.Trainer, pl_module: L.LightningModule):
-        video_path = self.save_dir / "weight_evolution.mp4"
-        images = [plt.imread(str(path)) for path in sorted(self.image_paths)]
+        image_files = sorted(list(self.save_dir.glob("epoch_*.png")))
+        images = [path.as_posix() for path in image_files]
         clip = ImageSequenceClip(images, fps=self.fps)
-        clip.write_videofile(str(video_path))
+        video_path = self.save_dir / "weight_evolution.mp4"
+        clip.write_videofile(video_path.as_posix(), codec="libx264", audio=False)
+        if isinstance(trainer.logger, WandbLogger):
+            trainer.logger.log_video(
+                key=f"{self.name}_evolution", videos=[video_path.as_posix()]
+            )

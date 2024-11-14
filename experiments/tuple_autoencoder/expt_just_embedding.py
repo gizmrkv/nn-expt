@@ -5,18 +5,19 @@ from typing import Tuple
 import lightning as L
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from lightning.pytorch.loggers import WandbLogger
 
 from nn_expt.callback import WeightBiasHeatmap
 from nn_expt.data import TupleReconstructDataModule, TupleSortDataModule
-from nn_expt.system import Tuple2TupleLinearSystem
+from nn_expt.system import Tuple2TupleJustEmbeddingSystem
 
 TUPLE_SIZE = 1
-RANGE_SIZE = 100
-EMBEDDING_DIM = 8
+RANGE_SIZE = 50
 BATCH_SIZE = 2048
 NUM_EPOCHS = 50
 SAMPLE_SIZE = 10000
+LR = 0.01
 
 # datamodule = TupleDataModule(
 datamodule = TupleReconstructDataModule(
@@ -27,22 +28,14 @@ datamodule = TupleReconstructDataModule(
     train_ratio=1,
 )
 
-system = Tuple2TupleLinearSystem(TUPLE_SIZE, RANGE_SIZE, EMBEDDING_DIM)
+system = Tuple2TupleJustEmbeddingSystem(TUPLE_SIZE, RANGE_SIZE, lr=LR)
 
 run_name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 wandb_logger = WandbLogger(run_name, project="tuple-autoencoder")
 
 
-def get_embedding(system: Tuple2TupleLinearSystem) -> torch.Tensor:
-    return system.embedding.weight
-
-
-def get_weight(system: Tuple2TupleLinearSystem) -> torch.Tensor:
-    return system.linear.weight
-
-
-def get_bias(system: Tuple2TupleLinearSystem) -> torch.Tensor:
-    return system.linear.bias
+def get_embedding(system: Tuple2TupleJustEmbeddingSystem) -> torch.Tensor:
+    return F.softmax(system.embedding.weight, dim=1)
 
 
 log_dir = Path("logs") / run_name
@@ -51,17 +44,10 @@ embedding_heatmap = WeightBiasHeatmap(
     save_dir=log_dir,
     name="embedding",
 )
-weight_bias_heatmap = WeightBiasHeatmap(
-    get_weight,  # type: ignore
-    get_bias,  # type: ignore
-    save_dir=log_dir,
-    name="weight_bias",
-)
-
 trainer = L.Trainer(
     max_epochs=NUM_EPOCHS,
     logger=wandb_logger,
-    callbacks=[embedding_heatmap, weight_bias_heatmap],
+    callbacks=[embedding_heatmap],
 )
 trainer.fit(system, datamodule)
 wandb_logger.finalize("success")
