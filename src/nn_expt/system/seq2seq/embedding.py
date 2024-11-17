@@ -3,25 +3,27 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 
-from .tuple2tuple import Tuple2TupleSystem
+from .base import Seq2SeqSystem
 
 
-class Tuple2TupleJustEmbeddingSystem(Tuple2TupleSystem):
+class EmbeddingSeq2SeqSystem(Seq2SeqSystem):
     def __init__(
         self,
-        tuple_size: int,
-        range_size: int,
+        max_length: int,
+        vocab_size: int,
         *,
         lr: float = 0.001,
         weight_decay: float = 0.0,
+        reinforce_loss: bool = False,
     ):
         super().__init__(
-            tuple_size=tuple_size,
-            range_size=range_size,
+            max_length,
+            vocab_size,
             lr=lr,
             weight_decay=weight_decay,
+            reinforce_loss=reinforce_loss,
         )
-        self.embedding = nn.Embedding(range_size, range_size)
+        self.embedding = nn.Embedding(vocab_size, vocab_size)
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, None]:
         return self.embedding(x), None

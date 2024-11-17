@@ -24,6 +24,7 @@
         "ecdf",
         "ECDF",
         "elim",
+        "expt",
         "figsize",
         "imread",
         "joblib",

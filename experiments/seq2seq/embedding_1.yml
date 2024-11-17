@@ -1,0 +1,22 @@
+program: embedding.py
+method: grid
+metric:
+  name: valid/acc_mean
+  goal: maximize
+parameters:
+  max_length:
+    values: [1, 2, 3]
+  vocab_size:
+    values: [10, 20, 30]
+  batch_size:
+    value: 1024
+  sample_size:
+    value: 10000
+  train_ratio:
+    value: 0.9
+  lr:
+    value: 0.001
+  weight_decay:
+    value: 0.0
+  max_epochs:
+    value: 100

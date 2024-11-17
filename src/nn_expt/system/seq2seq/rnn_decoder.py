@@ -4,28 +4,30 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from .tuple2tuple import Tuple2TupleSystem
+from .base import Seq2SeqSystem
 
 
-class Tuple2TupleSeqRNNSystem(Tuple2TupleSystem):
+class RNNDecoderSeq2SeqSystem(Seq2SeqSystem):
     def __init__(
         self,
-        tuple_size: int,
-        range_size: int,
+        max_length: int,
+        vocab_size: int,
         embedding_dim: int,
         hidden_size: int,
         rnn_type: Literal["RNN", "LSTM", "GRU"],
         num_layers: int = 1,
+        peeky: bool = False,
         *,
         lr: float = 0.001,
         weight_decay: float = 0.0,
-        peeky: bool = False,
+        reinforce_loss: bool = False,
     ):
         super().__init__(
-            tuple_size=tuple_size,
-            range_size=range_size,
+            max_length,
+            vocab_size,
             lr=lr,
             weight_decay=weight_decay,
+            reinforce_loss=reinforce_loss,
         )
         self.embedding_dim = embedding_dim
         self.hidden_size = hidden_size
@@ -33,13 +35,13 @@ class Tuple2TupleSeqRNNSystem(Tuple2TupleSystem):
         self.num_layers = num_layers
         self.peeky = peeky
 
-        self.embedding = nn.Embedding(range_size, embedding_dim)
+        self.embedding = nn.Embedding(max_length, embedding_dim)
         self.hidden_linears = nn.ModuleList(
-            nn.Linear(tuple_size * embedding_dim, hidden_size)
+            nn.Linear(max_length * embedding_dim, hidden_size)
             for _ in range(num_layers)
         )
         self.start_embedding = nn.Parameter(torch.randn(1, embedding_dim))
-        self.output_linear = nn.Linear(hidden_size, range_size)
+        self.output_linear = nn.Linear(hidden_size, vocab_size)
 
         rnn_dict = {
             "RNN": nn.RNN,
@@ -54,7 +56,7 @@ class Tuple2TupleSeqRNNSystem(Tuple2TupleSystem):
         )
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        x = self.embedding(x).view(-1, self.tuple_size * self.embedding_dim)
+        x = self.embedding(x).view(-1, self.max_length * self.embedding_dim)
         h_0 = torch.stack([linear(x) for linear in self.hidden_linears])
         h = h_0
         if isinstance(self.rnn, nn.LSTM):
@@ -64,7 +66,7 @@ class Tuple2TupleSeqRNNSystem(Tuple2TupleSystem):
 
         symbol_list: List[torch.Tensor] = []
         logits_list: List[torch.Tensor] = []
-        for _ in range(self.tuple_size):
+        for _ in range(self.max_length):
             i = i.unsqueeze(1)
             if isinstance(self.rnn, nn.LSTM):
                 y, (h, c) = self.rnn(i, (h, c))  # type: ignore

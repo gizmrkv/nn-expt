@@ -6,11 +6,11 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 
-class TupleReconstructDataModule(L.LightningDataModule):
+class SequenceIdentityDataModule(L.LightningDataModule):
     def __init__(
         self,
-        tuple_size: int,
-        range_size: int,
+        max_length: int,
+        vocab_size: int,
         batch_size: int,
         sample_size: int,
         *,
@@ -18,8 +18,8 @@ class TupleReconstructDataModule(L.LightningDataModule):
         num_workers: int = 4,
     ):
         super().__init__()
-        self.tuple_size = tuple_size
-        self.range_size = range_size
+        self.max_length = max_length
+        self.vocab_size = vocab_size
         self.batch_size = batch_size
         self.sample_size = sample_size
         self.train_ratio = train_ratio
@@ -31,7 +31,7 @@ class TupleReconstructDataModule(L.LightningDataModule):
     def setup(self, stage: str | None = None):
         if stage == "fit" or stage is None:
             combinations = list(
-                itertools.product(range(self.range_size), repeat=self.tuple_size)
+                itertools.product(range(self.vocab_size), repeat=self.max_length)
             )
             all_data = torch.tensor(combinations, dtype=torch.long)
             indexes = torch.randperm(len(all_data))

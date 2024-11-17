@@ -6,11 +6,11 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 
 
-class Tuple2TupleSystem(L.LightningModule):
+class Seq2SeqSystem(L.LightningModule):
     def __init__(
         self,
-        tuple_size: int,
-        range_size: int,
+        max_length: int,
+        vocab_size: int,
         *,
         lr: float = 0.001,
         weight_decay: float = 0.0,
@@ -18,8 +18,8 @@ class Tuple2TupleSystem(L.LightningModule):
     ):
         super().__init__()
         self.save_hyperparameters()
-        self.tuple_size = tuple_size
-        self.range_size = range_size
+        self.max_length = max_length
+        self.vocab_size = vocab_size
         self.lr = lr
         self.weight_decay = weight_decay
         self.reinforce_loss = reinforce_loss
@@ -33,7 +33,7 @@ class Tuple2TupleSystem(L.LightningModule):
         prog_bar: bool = False,
         prefix: str = "train/",
     ):
-        self.log("loss", loss.mean())
+        self.log(prefix + "loss", loss.mean())
 
         distr = Categorical(logits=logits)
         action = logits.argmax(dim=-1)
@@ -42,8 +42,8 @@ class Tuple2TupleSystem(L.LightningModule):
         self.log(prefix + "acc_mean", acc_mean, prog_bar=prog_bar)
         self.log(prefix + "entropy", entropy)
 
-        zero_pad = len(str(self.tuple_size - 1))
-        for i in range(self.tuple_size):
+        zero_pad = len(str(self.max_length - 1))
+        for i in range(self.max_length):
             acc_i = (action[:, i] == target[:, i]).float().mean()
             ent_i = distr.entropy()[:, i].mean()
             self.log(prefix + f"acc_{i:0{zero_pad}}", acc_i)
@@ -59,11 +59,11 @@ class Tuple2TupleSystem(L.LightningModule):
         else:
             loss = (
                 F.cross_entropy(
-                    logits.view(-1, self.range_size),
+                    logits.view(-1, self.vocab_size),
                     target.view(-1),
                     reduction="none",
                 )
-                .view(-1, self.tuple_size)
+                .view(-1, self.max_length)
                 .mean(-1)
             )
 
