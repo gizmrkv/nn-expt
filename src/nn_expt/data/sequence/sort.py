@@ -12,21 +12,21 @@ class SequenceSortDataModule(L.LightningDataModule):
         max_length: int,
         vocab_size: int,
         batch_size: int,
-        sample_size: int,
         *,
         train_ratio: float = 0.8,
         num_workers: int = 4,
+        n_repeats: int = 1,
     ):
         super().__init__()
         self.max_length = max_length
         self.vocab_size = vocab_size
         self.batch_size = batch_size
-        self.sample_size = sample_size
         self.train_ratio = train_ratio
         self.num_workers = num_workers
+        self.n_repeats = n_repeats
 
         self.train_dataset: TensorDataset | None = None
-        self.valid_dataset: TensorDataset | None = None
+        self.val_dataset: TensorDataset | None = None
 
     def setup(self, stage: str | None = None):
         if stage == "fit" or stage is None:
@@ -40,22 +40,16 @@ class SequenceSortDataModule(L.LightningDataModule):
 
             sorted_data = torch.sort(all_data, dim=1)[0]
 
-            train_size = int(self.sample_size * self.train_ratio)
+            train_size = int(len(all_data) * self.train_ratio)
             train_data = all_data[:train_size]
             train_sorted = sorted_data[:train_size]
-            valid_data = all_data[train_size:]
-            valid_sorted = sorted_data[train_size:]
+            val_data = all_data[train_size:]
+            val_sorted = sorted_data[train_size:]
 
-            if self.sample_size > len(train_data):
-                indices = torch.randint(
-                    high=len(train_data),
-                    size=(self.sample_size - len(train_data),),
-                )
-                train_data = torch.cat([train_data, train_data[indices]])
-                train_sorted = torch.cat([train_sorted, train_sorted[indices]])
+            train_data = torch.repeat_interleave(train_data, self.n_repeats, dim=0)
 
             self.train_dataset = TensorDataset(train_data, train_sorted)
-            self.valid_dataset = TensorDataset(valid_data, valid_sorted)
+            self.val_dataset = TensorDataset(val_data, val_sorted)
 
     def train_dataloader(self) -> DataLoader[Tuple[torch.Tensor, ...]]:
         assert self.train_dataset is not None
@@ -67,9 +61,9 @@ class SequenceSortDataModule(L.LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader[Tuple[torch.Tensor, ...]]:
-        assert self.valid_dataset is not None
+        assert self.val_dataset is not None
         return DataLoader(
-            self.valid_dataset,
+            self.val_dataset,
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,

@@ -18,6 +18,7 @@ class WeightBiasHeatmap(L.Callback):
         save_dir: str | Path,
         name: str,
         fps: int = 30,
+        frame_every_n_epochs: int = 1,
     ):
         super().__init__()
         self.weight_fn = weight_fn
@@ -25,11 +26,15 @@ class WeightBiasHeatmap(L.Callback):
         self.save_dir = Path(save_dir) / name
         self.name = name
         self.fps = fps
+        self.frame_every_n_epochs = frame_every_n_epochs
 
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
     def on_train_epoch_end(self, trainer: L.Trainer, pl_module: L.LightningModule):
         epoch = trainer.current_epoch
+        if epoch % self.frame_every_n_epochs != 0:
+            return
+
         weight = self.weight_fn(pl_module).detach()
 
         if self.bias_fn is not None:
@@ -40,8 +45,8 @@ class WeightBiasHeatmap(L.Callback):
 
         plt.figure(figsize=(10, 8))
         sns.heatmap(weight.cpu().numpy(), cmap="coolwarm", center=0)
-        plt.xlabel("Feature Dimension")
-        plt.ylabel("Output Dimension")
+        plt.xlabel("Output Dimension")
+        plt.ylabel("Input Dimension")
         plt.title(f"Weight/Bias Heatmap - Epoch {epoch}")
 
         image_path = self.save_dir / f"epoch_{epoch:04d}.png"
