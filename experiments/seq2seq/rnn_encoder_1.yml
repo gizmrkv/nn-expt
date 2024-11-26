@@ -9,13 +9,15 @@ parameters:
   max_length:
     value: 3
   vocab_size:
-    value: 30
+    value: 10
   embedding_dim:
     value: 32
+  one_hot:
+    value: True
   hidden_size:
     value: 32
   rnn_type:
-    value: "gru"
+    value: "rnn"
   num_layers:
     value: 1
   bias:
@@ -29,7 +31,9 @@ parameters:
   weight_decay:
     value: 0.0
   max_epochs:
-    value: 40
+    value: 80
+  frame_every_n_epochs:
+    value: 1
   batch_size:
     value: 10000
   train_ratio:
@@ -37,4 +41,4 @@ parameters:
   num_workers:
     value: 1
   n_repeats:
-    value: 1
+    value: 10

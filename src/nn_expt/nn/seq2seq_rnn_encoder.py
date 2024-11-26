@@ -12,6 +12,7 @@ class Seq2SeqRNNEncoder(nn.Module):
         out_max_length: int,
         *,
         embedding_dim: int,
+        one_hot: bool = False,
         hidden_size: int,
         rnn_type: Literal["rnn", "lstm", "gru"] = "gru",
         num_layers: int = 1,
@@ -24,6 +25,7 @@ class Seq2SeqRNNEncoder(nn.Module):
         self.out_vocab_size = out_vocab_size
         self.out_max_length = out_max_length
         self.embedding_dim = embedding_dim
+        self.one_hot = one_hot
         self.hidden_size = hidden_size
         self.rnn_type = rnn_type
         self.num_layers = num_layers
@@ -31,11 +33,19 @@ class Seq2SeqRNNEncoder(nn.Module):
         self.dropout = dropout
         self.bidirectional = bidirectional
 
+        if one_hot:
+            self.embedding_dim = in_vocab_size
+            self.embedding = nn.Embedding(in_vocab_size, in_vocab_size)
+            self.embedding.weight.data = torch.eye(in_vocab_size)
+            self.embedding.weight.requires_grad = False
+        else:
+            self.embedding_dim = embedding_dim
+            self.embedding = nn.Embedding(in_vocab_size, embedding_dim)
+            nn.init.uniform_(self.embedding.weight, -1.0, 1.0)
+
         rnn_types = {"rnn": nn.RNN, "lstm": nn.LSTM, "gru": nn.GRU}
-        self.embedding = nn.Embedding(in_vocab_size, embedding_dim)
-        nn.init.uniform_(self.embedding.weight, -1.0, 1.0)
         self.encoder = rnn_types[rnn_type](
-            embedding_dim,
+            self.embedding_dim,
             hidden_size,
             num_layers=num_layers,
             bias=bias,

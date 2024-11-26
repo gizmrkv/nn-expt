@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Callable
+from typing import Callable, List
 
 import lightning as L
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
+import torch.nn as nn
 from lightning.pytorch.loggers import WandbLogger
 from moviepy.editor import ImageSequenceClip
 
@@ -63,3 +64,102 @@ class WeightBiasHeatmap(L.Callback):
             trainer.logger.log_video(
                 key=f"{self.name}_evolution", videos=[video_path.as_posix()]
             )
+
+
+def embedding_weight_heatmap(
+    module: nn.Embedding,
+    *,
+    save_dir: str | Path,
+    name: str,
+    fps: int = 30,
+    frame_every_n_epochs: int = 1,
+) -> WeightBiasHeatmap:
+    return WeightBiasHeatmap(
+        lambda _: module.weight,
+        save_dir=save_dir,
+        name=name,
+        fps=fps,
+        frame_every_n_epochs=frame_every_n_epochs,
+    )
+
+
+def linear_weight_bias_heatmap(
+    module: nn.Linear,
+    *,
+    save_dir: str | Path,
+    name: str,
+    fps: int = 30,
+    frame_every_n_epochs: int = 1,
+) -> WeightBiasHeatmap:
+    return WeightBiasHeatmap(
+        lambda _: module.weight,
+        lambda _: module.bias,
+        save_dir=save_dir,
+        name=name,
+        fps=fps,
+        frame_every_n_epochs=frame_every_n_epochs,
+    )
+
+
+def rnn_weight_bias_heatmaps(
+    module: nn.RNN | nn.LSTM | nn.GRU,
+    *,
+    save_dir: str | Path,
+    name: str,
+    fps: int = 30,
+    frame_every_n_epochs: int = 1,
+) -> List[WeightBiasHeatmap]:
+    callbacks = [
+        *[
+            WeightBiasHeatmap(
+                lambda _: getattr(module, f"weight_ih_l{i}"),
+                lambda _: getattr(module, f"bias_ih_l{i}"),
+                save_dir=save_dir,
+                name=f"{name}/weight_ih_l{i}",
+                fps=fps,
+                frame_every_n_epochs=frame_every_n_epochs,
+            )
+            for i in range(module.num_layers)
+        ],
+        *[
+            WeightBiasHeatmap(
+                lambda _: getattr(module, f"weight_hh_l{i}"),
+                lambda _: getattr(module, f"bias_hh_l{i}"),
+                save_dir=save_dir,
+                name=f"{name}/weight_hh_l{i}",
+                fps=fps,
+                frame_every_n_epochs=frame_every_n_epochs,
+            )
+            for i in range(module.num_layers)
+        ],
+    ]
+
+    if isinstance(module, nn.LSTM):
+        callbacks.extend(
+            [
+                *[
+                    WeightBiasHeatmap(
+                        lambda _: getattr(module, f"weight_ih_l{i}_reverse"),
+                        lambda _: getattr(module, f"bias_ih_l{i}_reverse"),
+                        save_dir=save_dir,
+                        name=f"{name}/weight_ih_l{i}_reverse",
+                        fps=fps,
+                        frame_every_n_epochs=frame_every_n_epochs,
+                    )
+                    for i in range(module.num_layers)
+                ],
+                *[
+                    WeightBiasHeatmap(
+                        lambda _: getattr(module, f"weight_hh_l{i}_reverse"),
+                        lambda _: getattr(module, f"bias_hh_l{i}_reverse"),
+                        save_dir=save_dir,
+                        name=f"{name}/weight_hh_l{i}_reverse",
+                        fps=fps,
+                        frame_every_n_epochs=frame_every_n_epochs,
+                    )
+                    for i in range(module.num_layers)
+                ],
+            ]
+        )
+
+    return callbacks

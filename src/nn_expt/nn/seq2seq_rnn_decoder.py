@@ -14,6 +14,7 @@ class Seq2SeqRNNDecoder(nn.Module):
         out_max_length: int,
         *,
         embedding_dim: int,
+        one_hot: bool = False,
         hidden_size: int,
         rnn_type: Literal["rnn", "lstm", "gru"] = "gru",
         num_layers: int = 1,
@@ -26,7 +27,7 @@ class Seq2SeqRNNDecoder(nn.Module):
         self.in_max_length = in_max_length
         self.out_vocab_size = out_vocab_size
         self.out_max_length = out_max_length
-        self.embedding_dim = embedding_dim
+        self.one_hot = one_hot
         self.hidden_size = hidden_size
         self.rnn_type = rnn_type
         self.num_layers = num_layers
@@ -34,14 +35,22 @@ class Seq2SeqRNNDecoder(nn.Module):
         self.dropout = dropout
         self.bidirectional = bidirectional
 
-        rnn_types = {"rnn": nn.RNN, "lstm": nn.LSTM, "gru": nn.GRU}
-        self.embedding = nn.Embedding(in_vocab_size, embedding_dim)
-        nn.init.uniform_(self.embedding.weight, -1.0, 1.0)
+        if one_hot:
+            self.embedding_dim = in_vocab_size
+            self.embedding = nn.Embedding(in_vocab_size, in_vocab_size)
+            self.embedding.weight.data = torch.eye(in_vocab_size)
+            self.embedding.weight.requires_grad = False
+        else:
+            self.embedding_dim = embedding_dim
+            self.embedding = nn.Embedding(in_vocab_size, embedding_dim)
+            nn.init.uniform_(self.embedding.weight, -1.0, 1.0)
+
         self.encoder = nn.Linear(
-            in_max_length * embedding_dim, hidden_size * (1 + bidirectional)
+            in_max_length * self.embedding_dim, hidden_size * (1 + bidirectional)
         )
+        rnn_types = {"rnn": nn.RNN, "lstm": nn.LSTM, "gru": nn.GRU}
         self.decoder = rnn_types[rnn_type](
-            embedding_dim,
+            self.embedding_dim,
             hidden_size,
             num_layers=num_layers,
             bias=bias,
@@ -49,7 +58,7 @@ class Seq2SeqRNNDecoder(nn.Module):
             dropout=dropout,
             bidirectional=bidirectional,
         )
-        self.sos_embedding = nn.Parameter(torch.zeros(1, embedding_dim))
+        self.sos_embedding = nn.Parameter(torch.zeros(1, self.embedding_dim))
         self.output_linear = nn.Linear(hidden_size, out_vocab_size)
 
     def forward(self, input: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
