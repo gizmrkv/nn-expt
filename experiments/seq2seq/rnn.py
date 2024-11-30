@@ -10,7 +10,7 @@ from nn_expt.callback import (
     rnn_weight_bias_heatmaps,
 )
 from nn_expt.data.sequence import SequenceIdentityDataModule
-from nn_expt.nn import Seq2SeqRNNEncoder
+from nn_expt.nn import Seq2SeqRNNDecoder, Seq2SeqRNNEncoder
 from nn_expt.system.seq2seq import Seq2SeqSystem
 from nn_expt.utils import get_run_name
 
@@ -21,19 +21,35 @@ def main():
 
     L.seed_everything(config.seed)
 
-    model = Seq2SeqRNNEncoder(
-        config.vocab_size,
-        config.vocab_size,
-        config.max_length,
-        embedding_dim=config.embedding_dim,
-        one_hot=config.one_hot,
-        hidden_size=config.hidden_size,
-        rnn_type=config.rnn_type,
-        num_layers=config.num_layers,
-        bias=config.bias,
-        dropout=config.dropout,
-        bidirectional=config.bidirectional,
-    )
+    if config.rnn_mode == "encoder":
+        model = Seq2SeqRNNEncoder(
+            config.vocab_size,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.embedding_dim,
+            one_hot=config.one_hot,
+            hidden_size=config.hidden_size,
+            rnn_type=config.rnn_type,
+            num_layers=config.num_layers,
+            bias=config.bias,
+            dropout=config.dropout,
+            bidirectional=config.bidirectional,
+        )
+    else:
+        model = Seq2SeqRNNDecoder(
+            config.vocab_size,
+            config.max_length,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.embedding_dim,
+            one_hot=config.one_hot,
+            hidden_size=config.hidden_size,
+            rnn_type=config.rnn_type,
+            num_layers=config.num_layers,
+            bias=config.bias,
+            dropout=config.dropout,
+            bidirectional=config.bidirectional,
+        )
     system = Seq2SeqSystem(
         model,
         lr=config.lr,
@@ -56,15 +72,15 @@ def main():
                 frame_every_n_epochs=config.frame_every_n_epochs,
             ),
             linear_weight_bias_heatmap(
-                model.decoder,
+                model.linear,
                 save_dir=log_dir,
-                name="decoder",
+                name="encoder",
                 frame_every_n_epochs=config.frame_every_n_epochs,
             ),
             *rnn_weight_bias_heatmaps(
-                model.encoder,
+                model.rnn,
                 save_dir=log_dir,
-                name="encoder",
+                name="decoder",
                 frame_every_n_epochs=config.frame_every_n_epochs,
             ),
         ],

@@ -1,3 +1,4 @@
+from .positional_probability_heatmap import PositionalProbabilityHeatmap
 from .weight_bias_heatmap import (
     WeightBiasHeatmap,
     embedding_weight_heatmap,
@@ -6,6 +7,7 @@ from .weight_bias_heatmap import (
 )
 
 __all__ = [
+    "PositionalProbabilityHeatmap",
     "WeightBiasHeatmap",
     "embedding_weight_heatmap",
     "linear_weight_bias_heatmap",

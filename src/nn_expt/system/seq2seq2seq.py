@@ -10,20 +10,24 @@ from torch.distributions import Categorical
 class Seq2Seq2SeqSystem(L.LightningModule):
     def __init__(
         self,
-        encoder: nn.Module,
-        decoder: nn.Module,
+        sender: nn.Module,
+        receiver: nn.Module,
         *,
-        lr: float = 0.001,
-        weight_decay: float = 0.0,
-        encode_entropy_weight: float = 0.01,
+        sender_lr: float = 0.001,
+        sender_weight_decay: float = 0.0,
+        sender_entropy_weight: float = 0.01,
+        receiver_lr: float = 0.001,
+        receiver_weight_decay: float = 0.0,
     ):
         super().__init__()
         self.save_hyperparameters()
-        self.encoder = encoder
-        self.decoder = decoder
-        self.lr = lr
-        self.weight_decay = weight_decay
-        self.encode_entropy_weight = encode_entropy_weight
+        self.sender = sender
+        self.receiver = receiver
+        self.sender_lr = sender_lr
+        self.sender_weight_decay = sender_weight_decay
+        self.sender_entropy_weight = sender_entropy_weight
+        self.receiver_lr = receiver_lr
+        self.receiver_weight_decay = receiver_weight_decay
 
     def step(
         self,
@@ -34,41 +38,39 @@ class Seq2Seq2SeqSystem(L.LightningModule):
         prefix: str = "train/",
     ) -> torch.Tensor:
         input, target = batch
-        encode_logits = self.encoder(input)
+        logits_s = self.sender(input)
 
-        if isinstance(encode_logits, tuple):
-            encode_logits, z = encode_logits
+        if isinstance(logits_s, tuple):
+            logits_s, z = logits_s
         elif self.training:
-            distr = Categorical(logits=encode_logits)
+            distr = Categorical(logits=logits_s)
             z = distr.sample()
         else:
-            z = encode_logits.argmax(dim=-1)
+            z = logits_s.argmax(dim=-1)
 
-        decode_logits = self.decoder(z)
+        logits_r = self.receiver(z)
 
-        if isinstance(decode_logits, tuple):
-            decode_logits, sequence = decode_logits
+        if isinstance(logits_r, tuple):
+            logits_r, sequence = logits_r
         elif self.training:
-            distr = Categorical(logits=decode_logits)
+            distr = Categorical(logits=logits_r)
             sequence = distr.sample()
         else:
-            sequence = decode_logits.argmax(dim=-1)
+            sequence = logits_r.argmax(dim=-1)
 
-        encode_loss, decode_loss = self.calc_loss(
-            encode_logits, decode_logits, z, target
-        )
+        loss_s, loss_r = self.calc_loss(logits_s, logits_r, z, target)
         self.log_metrics(
-            encode_loss,
-            decode_loss,
-            encode_logits,
-            decode_logits,
+            loss_s,
+            loss_r,
+            logits_s,
+            logits_r,
             z,
             sequence,
             target,
             prog_bar=prog_bar,
             prefix=prefix,
         )
-        return (encode_loss + decode_loss).mean()
+        return (loss_s + loss_r).mean()
 
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
@@ -78,19 +80,30 @@ class Seq2Seq2SeqSystem(L.LightningModule):
     def validation_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        return self.step(batch, batch_idx, prefix="val/")
+        return self.step(batch, batch_idx, prog_bar=True, prefix="val/")
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.AdamW(
-            self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+            [
+                {
+                    "params": self.sender.parameters(),
+                    "lr": self.sender_lr,
+                    "weight_decay": self.sender_weight_decay,
+                },
+                {
+                    "params": self.receiver.parameters(),
+                    "lr": self.receiver_lr,
+                    "weight_decay": self.receiver_weight_decay,
+                },
+            ],
         )
 
     def log_metrics(
         self,
-        encode_loss: torch.Tensor,
-        decode_loss: torch.Tensor,
-        encode_logits: torch.Tensor,
-        decode_logits: torch.Tensor,
+        sender_loss: torch.Tensor,
+        receiver_loss: torch.Tensor,
+        sender_logits: torch.Tensor,
+        receiver_logits: torch.Tensor,
         z: torch.Tensor,
         sequence: torch.Tensor,
         target: torch.Tensor,
@@ -98,53 +111,67 @@ class Seq2Seq2SeqSystem(L.LightningModule):
         prog_bar: bool = False,
         prefix: str = "train/",
     ):
-        self.log(prefix + "encode_loss", encode_loss.mean())
-        self.log(prefix + "decode_loss", decode_loss.mean())
-        self.log(prefix + "loss", (encode_loss + decode_loss).mean())
+        self.log(prefix + "sender_loss", sender_loss.mean())
+        self.log(prefix + "receiver_loss", receiver_loss.mean())
+        self.log(prefix + "loss", (sender_loss + receiver_loss).mean())
 
         acc_mean = (sequence == target).float().mean()
-        encode_entropy = Categorical(logits=encode_logits).entropy()
-        decode_entropy = Categorical(logits=decode_logits).entropy()
+        entropy_s = Categorical(logits=sender_logits).entropy()
+        entropy_r = Categorical(logits=receiver_logits).entropy()
         self.log(prefix + "acc_mean", acc_mean, prog_bar=prog_bar)
-        self.log(prefix + "encode_entropy", encode_entropy.mean())
-        self.log(prefix + "decode_entropy", decode_entropy.mean())
+        self.log(prefix + "sender_entropy", entropy_s.mean())
+        self.log(prefix + "receiver_entropy", entropy_r.mean())
 
         z_max_length = z.size(-1)
         zero_pad = len(str(z_max_length - 1))
         for i in range(z_max_length):
-            ent_i = encode_entropy[:, i].mean()
-            self.log(prefix + f"encode_ent_{i:0{zero_pad}}", ent_i)
+            ent_i = entropy_s[:, i].mean()
+            self.log(prefix + f"sender_ent_{i:0{zero_pad}}", ent_i)
 
         max_length = target.size(-1)
         zero_pad = len(str(max_length - 1))
         for i in range(max_length):
             acc_i = (sequence[:, i] == target[:, i]).float().mean()
-            ent_i = decode_entropy[:, i].mean()
+            ent_i = entropy_r[:, i].mean()
             self.log(prefix + f"acc_{i:0{zero_pad}}", acc_i)
-            self.log(prefix + f"decode_ent_{i:0{zero_pad}}", ent_i)
+            self.log(prefix + f"receiver_ent_{i:0{zero_pad}}", ent_i)
+
+        grad_norms_s = [
+            p.grad.norm() for p in self.sender.parameters() if p.grad is not None
+        ]
+        if grad_norms_s:
+            grad_norm_s = torch.stack(grad_norms_s).mean().item()
+            self.log(prefix + "sender_grad_norm", grad_norm_s)
+
+        grad_norms_r = [
+            p.grad.norm() for p in self.receiver.parameters() if p.grad is not None
+        ]
+        if grad_norms_r:
+            grad_norm_r = torch.stack(grad_norms_r).mean().item()
+            self.log(prefix + "receiver_grad_norm", grad_norm_r)
 
     def calc_loss(
         self,
-        encode_logits: torch.Tensor,
-        decode_logits: torch.Tensor,
+        sender_logits: torch.Tensor,
+        receiver_logits: torch.Tensor,
         z: torch.Tensor,
         target: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        vocab_size = decode_logits.size(-1)
+        vocab_size = receiver_logits.size(-1)
         max_length = target.size(-1)
-        decode_loss = (
+        loss_r = (
             F.cross_entropy(
-                decode_logits.view(-1, vocab_size),
+                receiver_logits.view(-1, vocab_size),
                 target.view(-1),
                 reduction="none",
             )
             .view(-1, max_length)
             .mean(-1)
         )
-        distr = Categorical(logits=encode_logits)
+        distr = Categorical(logits=sender_logits)
         log_prob = distr.log_prob(z).sum(dim=-1)
-        reward = -decode_loss.detach()
-        encode_loss = -(reward - reward.mean()) / (reward.std() + 1e-8) * log_prob
-        encode_entropy = distr.entropy().mean()
-        encode_loss = encode_loss - self.encode_entropy_weight * encode_entropy
-        return encode_loss, decode_loss
+        reward = -loss_r.detach()
+        loss_s = -(reward - reward.mean()) / (reward.std() + 1e-8) * log_prob
+        entropy_s = distr.entropy().mean()
+        loss_s = loss_s - self.sender_entropy_weight * entropy_s
+        return loss_s, loss_r

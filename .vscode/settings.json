@@ -7,7 +7,6 @@
         },
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnSave": true,
-        "editor.formatOnType": true
     },
     "cSpell.words": [
         "aggs",

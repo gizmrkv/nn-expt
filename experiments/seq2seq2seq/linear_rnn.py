@@ -10,17 +10,16 @@ from nn_expt.callback import (
     PositionalProbabilityHeatmap,
     embedding_weight_heatmap,
     linear_weight_bias_heatmap,
+    rnn_weight_bias_heatmaps,
 )
 from nn_expt.data.sequence import SequenceIdentityDataModule
-from nn_expt.nn import Seq2SeqLinear
+from nn_expt.nn import Seq2SeqLinear, Seq2SeqRNNDecoder, Seq2SeqRNNEncoder
 from nn_expt.system import Seq2Seq2SeqSystem
 from nn_expt.utils import get_run_name
 
 
 def main():
-    wandb.init(
-        project="seq2seq2seq",
-    )
+    wandb.init(project="seq2seq2seq")
     config = wandb.config
 
     L.seed_everything(config.seed)
@@ -34,14 +33,39 @@ def main():
         one_hot=config.sender_one_hot,
         noisy=config.sender_noisy,
     )
-    receiver = Seq2SeqLinear(
-        config.z_vocab_size,
-        config.z_max_length,
-        config.vocab_size,
-        config.max_length,
-        embedding_dim=config.receiver_embedding_dim,
-        one_hot=config.receiver_one_hot,
-    )
+
+    if config.receiver_rnn_mode == "encoder":
+        receiver = Seq2SeqRNNEncoder(
+            config.z_vocab_size,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.receiver_embedding_dim,
+            one_hot=config.receiver_one_hot,
+            hidden_size=config.receiver_hidden_size,
+            rnn_type=config.receiver_rnn_type,
+            num_layers=config.receiver_num_layers,
+            bias=config.receiver_bias,
+            dropout=config.receiver_dropout,
+            bidirectional=config.receiver_bidirectional,
+        )
+    elif config.receiver_rnn_mode == "decoder":
+        receiver = Seq2SeqRNNDecoder(
+            config.z_vocab_size,
+            config.z_max_length,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.receiver_embedding_dim,
+            one_hot=config.receiver_one_hot,
+            hidden_size=config.receiver_hidden_size,
+            rnn_type=config.receiver_rnn_type,
+            num_layers=config.receiver_num_layers,
+            bias=config.receiver_bias,
+            dropout=config.receiver_dropout,
+            bidirectional=config.receiver_bidirectional,
+        )
+    else:
+        raise ValueError(f"Unknown decoder_rnn_type: {config.receiver_rnn_type}")
+
     system = Seq2Seq2SeqSystem(
         sender,
         receiver,
@@ -94,6 +118,12 @@ def main():
                     receiver.linear,
                     save_dir=log_dir,
                     name="receiver_linear",
+                    frame_every_n_epochs=config.frame_every_n_epochs,
+                ),
+                *rnn_weight_bias_heatmaps(
+                    receiver.rnn,
+                    save_dir=log_dir,
+                    name="receiver_rnn",
                     frame_every_n_epochs=config.frame_every_n_epochs,
                 ),
             ]

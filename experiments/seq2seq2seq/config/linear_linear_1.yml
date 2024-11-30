@@ -1,0 +1,50 @@
+program: linear_linear.py
+method: grid
+metric:
+  name: val/acc_mean
+  goal: maximize
+parameters:
+  seed:
+    value: 42
+  max_length:
+    value: 3
+  vocab_size:
+    value: 10
+  z_max_length:
+    value: 3
+  z_vocab_size:
+    value: 10
+  sender_embedding_dim:
+    value: 32
+  sender_one_hot:
+    value: False
+  sender_noisy:
+    value: False
+  receiver_embedding_dim:
+    value: 32
+  receiver_one_hot:
+    value: False
+  sender_lr:
+    value: 0.001
+  sender_weight_decay:
+    value: 0.0
+  sender_entropy_weight:
+    value: 0.01
+  receiver_lr:
+    value: 0.001
+  receiver_weight_decay:
+    value: 0.0
+  frame_every_n_epochs:
+    value: 1
+  max_epochs:
+    value: 100
+  batch_size:
+    value: 10000
+  train_ratio:
+    value: 0.7
+  num_workers:
+    value: 4
+  n_repeats:
+    value: 10
+  patience:
+    value: 100

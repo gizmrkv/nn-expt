@@ -93,6 +93,13 @@ class Seq2SeqSystem(L.LightningModule):
             self.log(prefix + f"acc_{i:0{zero_pad}}", acc_i)
             self.log(prefix + f"ent_{i:0{zero_pad}}", ent_i)
 
+        grad_norms = [
+            p.grad.norm() for p in self.model.parameters() if p.grad is not None
+        ]
+        if grad_norms:
+            grad_norm = torch.stack(grad_norms).mean().item()
+            self.log(prefix + "grad_norm", grad_norm)
+
     def calc_loss(
         self, logits: torch.Tensor, sequence: torch.Tensor, target: torch.Tensor
     ) -> torch.Tensor:

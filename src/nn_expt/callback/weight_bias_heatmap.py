@@ -18,7 +18,7 @@ class WeightBiasHeatmap(L.Callback):
         *,
         save_dir: str | Path,
         name: str,
-        fps: int = 30,
+        fps: int = 20,
         frame_every_n_epochs: int = 1,
     ):
         super().__init__()
@@ -93,7 +93,7 @@ def linear_weight_bias_heatmap(
 ) -> WeightBiasHeatmap:
     return WeightBiasHeatmap(
         lambda _: module.weight,
-        lambda _: module.bias,
+        (lambda _: module.bias) if hasattr(module, "bias") else None,
         save_dir=save_dir,
         name=name,
         fps=fps,
@@ -113,7 +113,9 @@ def rnn_weight_bias_heatmaps(
         *[
             WeightBiasHeatmap(
                 lambda _: getattr(module, f"weight_ih_l{i}"),
-                lambda _: getattr(module, f"bias_ih_l{i}"),
+                (lambda _: getattr(module, f"bias_ih_l{i}"))
+                if hasattr(module, f"bias_ih_l{i}")
+                else None,
                 save_dir=save_dir,
                 name=f"{name}/weight_ih_l{i}",
                 fps=fps,
@@ -124,7 +126,9 @@ def rnn_weight_bias_heatmaps(
         *[
             WeightBiasHeatmap(
                 lambda _: getattr(module, f"weight_hh_l{i}"),
-                lambda _: getattr(module, f"bias_hh_l{i}"),
+                (lambda _: getattr(module, f"bias_hh_l{i}"))
+                if hasattr(module, f"bias_hh_l{i}")
+                else None,
                 save_dir=save_dir,
                 name=f"{name}/weight_hh_l{i}",
                 fps=fps,
@@ -140,7 +144,9 @@ def rnn_weight_bias_heatmaps(
                 *[
                     WeightBiasHeatmap(
                         lambda _: getattr(module, f"weight_ih_l{i}_reverse"),
-                        lambda _: getattr(module, f"bias_ih_l{i}_reverse"),
+                        (lambda _: getattr(module, f"bias_ih_l{i}_reverse"))
+                        if hasattr(module, f"bias_ih_l{i}_reverse")
+                        else None,
                         save_dir=save_dir,
                         name=f"{name}/weight_ih_l{i}_reverse",
                         fps=fps,
@@ -151,7 +157,9 @@ def rnn_weight_bias_heatmaps(
                 *[
                     WeightBiasHeatmap(
                         lambda _: getattr(module, f"weight_hh_l{i}_reverse"),
-                        lambda _: getattr(module, f"bias_hh_l{i}_reverse"),
+                        (lambda _: getattr(module, f"bias_hh_l{i}_reverse"))
+                        if hasattr(module, f"bias_hh_l{i}_reverse")
+                        else None,
                         save_dir=save_dir,
                         name=f"{name}/weight_hh_l{i}_reverse",
                         fps=fps,

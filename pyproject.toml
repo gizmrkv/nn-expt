@@ -17,6 +17,7 @@ dependencies = [
     "gym>=0.26.2",
     "pytorch-lightning>=2.4.0",
     "torchrl>=0.6.0",
+    "polars>=1.16.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"

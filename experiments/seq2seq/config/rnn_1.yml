@@ -1,4 +1,4 @@
-program: linear_linear.py
+program: rnn.py
 method: grid
 metric:
   name: val/acc_mean
@@ -10,35 +10,37 @@ parameters:
     value: 3
   vocab_size:
     value: 10
-  z_max_length:
-    value: 3
-  z_vocab_size:
-    value: 10
-  encode_embedding_dim:
+  rnn_model:
+    value: "encoder"
+  embedding_dim:
     value: 32
-  encode_one_hot:
-    value: False
-  noisy:
-    value: False
-  decode_embedding_dim:
+  one_hot:
+    value: True
+  hidden_size:
     value: 32
-  decode_one_hot:
+  rnn_type:
+    value: "rnn"
+  num_layers:
+    value: 1
+  bias:
+    value: True
+  dropout:
+    value: 0.0
+  bidirectional:
     value: False
   lr:
     value: 0.001
   weight_decay:
     value: 0.0
-  encode_entropy_weight:
-    value: 0.01
+  max_epochs:
+    value: 80
   frame_every_n_epochs:
     value: 1
-  max_epochs:
-    value: 1000
   batch_size:
     value: 10000
   train_ratio:
-    value: 0.9
+    value: 0.8
   num_workers:
-    value: 4
-  n_repeats:
     value: 1
+  n_repeats:
+    value: 10

@@ -44,7 +44,7 @@ class Seq2SeqRNNEncoder(nn.Module):
             nn.init.uniform_(self.embedding.weight, -1.0, 1.0)
 
         rnn_types = {"rnn": nn.RNN, "lstm": nn.LSTM, "gru": nn.GRU}
-        self.encoder = rnn_types[rnn_type](
+        self.rnn = rnn_types[rnn_type](
             self.embedding_dim,
             hidden_size,
             num_layers=num_layers,
@@ -53,7 +53,7 @@ class Seq2SeqRNNEncoder(nn.Module):
             dropout=dropout,
             bidirectional=bidirectional,
         )
-        self.decoder = nn.Linear(hidden_size, out_vocab_size * out_max_length)
+        self.linear = nn.Linear(hidden_size, out_vocab_size * out_max_length)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         emb = self.embedding(input)
@@ -68,7 +68,7 @@ class Seq2SeqRNNEncoder(nn.Module):
         else:
             h = zeros
 
-        _, h = self.encoder(emb, h)
+        _, h = self.rnn(emb, h)
         if self.rnn_type == "lstm":
             h = h[0]
 
@@ -77,4 +77,4 @@ class Seq2SeqRNNEncoder(nn.Module):
         else:
             h = h[-1]
 
-        return self.decoder(h).view(-1, self.out_max_length, self.out_vocab_size)
+        return self.linear(h).view(-1, self.out_max_length, self.out_vocab_size)

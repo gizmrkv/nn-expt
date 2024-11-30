@@ -45,11 +45,11 @@ class Seq2SeqRNNDecoder(nn.Module):
             self.embedding = nn.Embedding(in_vocab_size, embedding_dim)
             nn.init.uniform_(self.embedding.weight, -1.0, 1.0)
 
-        self.encoder = nn.Linear(
+        self.linear = nn.Linear(
             in_max_length * self.embedding_dim, hidden_size * (1 + bidirectional)
         )
         rnn_types = {"rnn": nn.RNN, "lstm": nn.LSTM, "gru": nn.GRU}
-        self.decoder = rnn_types[rnn_type](
+        self.rnn = rnn_types[rnn_type](
             self.embedding_dim,
             hidden_size,
             num_layers=num_layers,
@@ -64,7 +64,7 @@ class Seq2SeqRNNDecoder(nn.Module):
     def forward(self, input: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         emb = self.embedding(input)
         emb = emb.view(-1, self.in_max_length * self.embedding_dim)
-        h = self.encoder(emb)
+        h = self.linear(emb)
         h = h.view(self.num_layers * (1 + self.bidirectional), -1, self.hidden_size)
 
         if self.rnn_type == "lstm":
@@ -75,7 +75,7 @@ class Seq2SeqRNNDecoder(nn.Module):
         logits_list: List[torch.Tensor] = []
         for _ in range(self.out_max_length):
             x = x.unsqueeze(1)
-            y, h = self.decoder(x, h)
+            y, h = self.rnn(x, h)
 
             logits = self.output_linear(y.squeeze(1))
 
