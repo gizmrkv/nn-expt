@@ -1,4 +1,3 @@
-program: linear.py
 method: grid
 metric:
   name: val/acc_mean
@@ -15,7 +14,7 @@ parameters:
   one_hot:
     value: False
   noisy:
-    values: [True, False]
+    value: True
   lr:
     value: 0.001
   weight_decay:
@@ -32,3 +31,5 @@ parameters:
     value: 1
   n_repeats:
     value: 1
+  patience:
+    value: 10

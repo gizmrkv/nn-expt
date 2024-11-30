@@ -1,7 +1,10 @@
+import argparse
 from pathlib import Path
 from typing import List
 
 import lightning as L
+import torch
+import yaml
 from lightning.pytorch.callbacks import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 
@@ -45,10 +48,20 @@ def main():
     system = Seq2Seq2SeqSystem(
         sender,
         receiver,
-        sender_lr=config.sender_lr,
-        sender_weight_decay=config.sender_weight_decay,
-        receiver_lr=config.receiver_lr,
-        receiver_weight_decay=config.receiver_weight_decay,
+        optimizer=torch.optim.Adam(
+            [
+                {
+                    "params": sender.parameters(),
+                    "lr": config.sender_lr,
+                    "weight_decay": config.sender_weight_decay,
+                },
+                {
+                    "params": receiver.parameters(),
+                    "lr": config.receiver_lr,
+                    "weight_decay": config.receiver_weight_decay,
+                },
+            ]
+        ),
         sender_entropy_weight=config.sender_entropy_weight,
     )
 
@@ -57,7 +70,7 @@ def main():
     wandb_logger = WandbLogger(run_name)
 
     callbacks: List[L.Callback] = [
-        EarlyStopping("val/acc_mean", mode="max", patience=config.patience)
+        EarlyStopping("val/receiver_loss", mode="min", patience=config.patience)
     ]
     if config.frame_every_n_epochs > 0:
         callbacks.extend(
@@ -117,4 +130,18 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sweep_id", type=str, default=None)
+    args = parser.parse_args()
+
+    sweep_id: str | None = args.sweep_id
+
+    if sweep_id is None:
+        pwd = Path(__file__).parent
+        path = pwd / "config/linear_linear_1.yml"
+        with open(path, "r") as f:
+            config = yaml.safe_load(f)
+
+        sweep_id = wandb.sweep(sweep=config, project="seq2seq2seq")
+
+    wandb.agent(sweep_id, function=main)

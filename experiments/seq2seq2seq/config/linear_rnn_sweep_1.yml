@@ -1,7 +1,7 @@
-method: grid
+method: bayes
 metric:
-  name: val/acc_mean
-  goal: maximize
+  name: val/receiver_loss
+  goal: minimize
 parameters:
   seed:
     value: 42
@@ -14,43 +14,52 @@ parameters:
   z_vocab_size:
     value: 10
   sender_embedding_dim:
-    value: 32
+    min: 1
+    max: 64
   sender_one_hot:
-    value: True
+    values: [True, False]
   sender_noisy:
-    value: True
+    values: [True, False]
   receiver_rnn_mode:
     value: "encoder"
   receiver_embedding_dim:
-    value: 32
+    min: 1
+    max: 64
   receiver_one_hot:
-    value: True
+    values: [True, False]
   receiver_hidden_size:
-    value: 32
+    min: 1
+    max: 256
   receiver_rnn_type:
-    value: "rnn"
+    values: ["rnn", "lstm", "gru"]
   receiver_num_layers:
-    value: 1
+    values: [1, 2, 3]
   receiver_bias:
-    value: True
+    values: [True, False]
   receiver_dropout:
-    value: 0.2
+    min: 0.0
+    max: 1.0
   receiver_bidirectional:
-    value: True
+    values: [True, False]
   sender_lr:
-    value: 0.05
+    min: 0.0001
+    max: 0.1
   sender_weight_decay:
-    value: 0.08
+    min: 0.0
+    max: 0.1
   sender_entropy_weight:
-    value: 1.0
+    min: 0.0
+    max: 4.0
   receiver_lr:
-    value: 0.05
+    min: 0.0001
+    max: 0.1
   receiver_weight_decay:
-    value: 0.08
+    min: 0.0
+    max: 0.1
   frame_every_n_epochs:
-    value: 1
+    value: -1
   max_epochs:
-    value: 400
+    value: 500
   batch_size:
     value: 10000
   train_ratio:

@@ -69,14 +69,17 @@ class PositionalProbabilityHeatmap(L.Callback):
             [
                 data.select(f"i_{i}", cs.starts_with("o"))
                 .group_by(f"i_{i}", maintain_order=True)
-                .mean()
+                .agg(
+                    cs.starts_with("o").mean().name.suffix("_mean"),
+                    cs.starts_with("o").std().name.suffix("_std"),
+                )
                 .drop(f"i_{i}")
                 for i in range(self.max_length)
             ]
         )
 
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(data, cmap="viridis", vmin=0.0, vmax=1.0)
+        plt.figure(figsize=(14, 8))
+        sns.heatmap(data, cmap="viridis", vmin=0.0)
         plt.title(f"Positional Agg Heatmap - Epoch {epoch}")
 
         image_path = self.save_dir / f"epoch_{epoch:04d}.png"

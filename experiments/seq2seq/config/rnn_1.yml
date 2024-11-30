@@ -1,4 +1,3 @@
-program: rnn.py
 method: grid
 metric:
   name: val/acc_mean
@@ -43,4 +42,6 @@ parameters:
   num_workers:
     value: 1
   n_repeats:
+    value: 10
+  patience:
     value: 10

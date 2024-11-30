@@ -12,15 +12,13 @@ class Seq2SeqSystem(L.LightningModule):
         self,
         model: nn.Module,
         *,
-        lr: float = 0.001,
-        weight_decay: float = 0.0,
+        optimizer: torch.optim.Optimizer | None = None,
         reinforce_loss: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
         self.model = model
-        self.lr = lr
-        self.weight_decay = weight_decay
+        self.optimizer = optimizer
         self.reinforce_loss = reinforce_loss
 
     def step(
@@ -64,9 +62,7 @@ class Seq2SeqSystem(L.LightningModule):
         return self.step(batch, batch_idx, prog_bar=True, prefix="val/")
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        return torch.optim.AdamW(
-            self.parameters(), lr=self.lr, weight_decay=self.weight_decay
-        )
+        return self.optimizer or torch.optim.Adam(self.model.parameters())
 
     def log_metrics(
         self,

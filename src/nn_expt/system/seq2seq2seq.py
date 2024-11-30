@@ -13,21 +13,15 @@ class Seq2Seq2SeqSystem(L.LightningModule):
         sender: nn.Module,
         receiver: nn.Module,
         *,
-        sender_lr: float = 0.001,
-        sender_weight_decay: float = 0.0,
+        optimizer: torch.optim.Optimizer | None = None,
         sender_entropy_weight: float = 0.01,
-        receiver_lr: float = 0.001,
-        receiver_weight_decay: float = 0.0,
     ):
         super().__init__()
         self.save_hyperparameters()
         self.sender = sender
         self.receiver = receiver
-        self.sender_lr = sender_lr
-        self.sender_weight_decay = sender_weight_decay
+        self.optimizer = optimizer
         self.sender_entropy_weight = sender_entropy_weight
-        self.receiver_lr = receiver_lr
-        self.receiver_weight_decay = receiver_weight_decay
 
     def step(
         self,
@@ -83,20 +77,7 @@ class Seq2Seq2SeqSystem(L.LightningModule):
         return self.step(batch, batch_idx, prog_bar=True, prefix="val/")
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        return torch.optim.AdamW(
-            [
-                {
-                    "params": self.sender.parameters(),
-                    "lr": self.sender_lr,
-                    "weight_decay": self.sender_weight_decay,
-                },
-                {
-                    "params": self.receiver.parameters(),
-                    "lr": self.receiver_lr,
-                    "weight_decay": self.receiver_weight_decay,
-                },
-            ],
-        )
+        return self.optimizer or torch.optim.Adam(self.parameters())
 
     def log_metrics(
         self,
