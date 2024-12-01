@@ -1,4 +1,4 @@
-method: grid
+method: bayes
 metric:
   name: val/loss
   goal: minimize
@@ -8,21 +8,35 @@ parameters:
   max_length:
     value: 3
   vocab_size:
-    value: 30
+    value: 10
+  rnn_mode:
+    value: "decoder"
   embedding_dim:
-    value: 64
+    value: 32
   one_hot:
-    value: False
-  noisy:
     value: True
+  hidden_size:
+    min: 4
+    max: 64
+  rnn_type:
+    values: ["rnn", "lstm", "gru"]
+  num_layers:
+    min: 1
+    max: 3
+  bias:
+    values: [True, False]
+  dropout:
+    min: 0.0
+    max: 0.5
   lr:
-    value: 0.001
+    min: 0.001
+    max: 0.1
   weight_decay:
     value: 0.0
   max_epochs:
     value: 100
   frame_every_n_epochs:
-    value: 1
+    value: -1
   batch_size:
     value: 10000
   train_ratio:
@@ -30,6 +44,6 @@ parameters:
   num_workers:
     value: 0
   n_repeats:
-    value: 1
-  patience:
     value: 10
+  patience:
+    value: 50

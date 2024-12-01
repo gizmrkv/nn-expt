@@ -1,7 +1,7 @@
 method: grid
 metric:
-  name: val/acc_mean
-  goal: maximize
+  name: val/receiver_loss
+  goal: minimize
 parameters:
   seed:
     value: 42

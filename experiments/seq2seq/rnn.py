@@ -22,7 +22,7 @@ from nn_expt.utils import get_run_name
 
 
 def main():
-    wandb.init()
+    wandb.init(project="seq2seq")
     config = wandb.config
 
     L.seed_everything(config.seed)
@@ -54,7 +54,6 @@ def main():
             num_layers=config.num_layers,
             bias=config.bias,
             dropout=config.dropout,
-            bidirectional=config.bidirectional,
         )
     system = Seq2SeqSystem(
         model,
@@ -65,7 +64,7 @@ def main():
 
     run_name = get_run_name()
     log_dir = Path("logs") / run_name
-    wandb_logger = WandbLogger(run_name, project="seq2seq")
+    wandb_logger = WandbLogger(run_name)
 
     callbacks: List[L.Callback] = [
         EarlyStopping("val/loss", mode="min", patience=config.patience)
@@ -123,17 +122,20 @@ def main():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sweep_id", type=str, default=None)
+    parser.add_argument("--sweep_id", "-s", type=str, default=None)
+    parser.add_argument("--config_path", "-c", type=str, default=None)
+
     args = parser.parse_args()
-
     sweep_id: str | None = args.sweep_id
+    config_path: str | None = args.config_path
 
-    if sweep_id is None:
-        pwd = Path(__file__).parent
-        path = pwd / "config/rnn_1.yml"
-        with open(path, "r") as f:
+    if sweep_id is None and config_path is not None:
+        with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        sweep_id = wandb.sweep(sweep=config, project="seq2seq")
+        sweep_id = wandb.sweep(config, project="seq2seq")
+
+    if sweep_id is None:
+        raise ValueError("Wrong sweep_id or config_path")
 
     wandb.agent(sweep_id, function=main)

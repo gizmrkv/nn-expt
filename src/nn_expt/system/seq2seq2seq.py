@@ -93,13 +93,13 @@ class Seq2Seq2SeqSystem(L.LightningModule):
         prefix: str = "train/",
     ):
         self.log(prefix + "sender_loss", sender_loss.mean())
-        self.log(prefix + "receiver_loss", receiver_loss.mean())
+        self.log(prefix + "receiver_loss", receiver_loss.mean(), prog_bar=prog_bar)
         self.log(prefix + "loss", (sender_loss + receiver_loss).mean())
 
         acc_mean = (sequence == target).float().mean()
         entropy_s = Categorical(logits=sender_logits).entropy()
         entropy_r = Categorical(logits=receiver_logits).entropy()
-        self.log(prefix + "acc_mean", acc_mean, prog_bar=prog_bar)
+        self.log(prefix + "acc_mean", acc_mean)
         self.log(prefix + "sender_entropy", entropy_s.mean())
         self.log(prefix + "receiver_entropy", entropy_r.mean())
 

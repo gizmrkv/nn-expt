@@ -1,7 +1,7 @@
 method: grid
 metric:
-  name: val/acc_mean
-  goal: maximize
+  name: val/loss
+  goal: minimize
 parameters:
   seed:
     value: 42
@@ -9,14 +9,14 @@ parameters:
     value: 3
   vocab_size:
     value: 10
-  rnn_model:
+  rnn_mode:
     value: "encoder"
   embedding_dim:
     value: 32
   one_hot:
     value: True
   hidden_size:
-    value: 32
+    value: 64
   rnn_type:
     value: "rnn"
   num_layers:
@@ -28,11 +28,11 @@ parameters:
   bidirectional:
     value: False
   lr:
-    value: 0.001
+    value: 0.08
   weight_decay:
     value: 0.0
   max_epochs:
-    value: 80
+    value: 100
   frame_every_n_epochs:
     value: 1
   batch_size:
@@ -40,8 +40,8 @@ parameters:
   train_ratio:
     value: 0.8
   num_workers:
-    value: 1
+    value: 0
   n_repeats:
     value: 10
   patience:
-    value: 10
+    value: 50

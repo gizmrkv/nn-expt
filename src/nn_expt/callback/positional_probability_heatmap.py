@@ -52,6 +52,10 @@ class PositionalProbabilityHeatmap(L.Callback):
 
         with torch.no_grad():
             output = self.sender(self.data.to(pl_module.device))
+
+            if isinstance(output, tuple):
+                output, *_ = output
+
             output = output.softmax(dim=-1)
             output = output.view(-1, self.z_vocab_size * self.z_max_length)
             output = torch.concat([self.data.cpu(), output.cpu()], dim=1)

@@ -74,11 +74,11 @@ class Seq2SeqSystem(L.LightningModule):
         prog_bar: bool = False,
         prefix: str = "train/",
     ):
-        self.log(prefix + "loss", loss.mean())
+        self.log(prefix + "loss", loss.mean(), prog_bar=prog_bar)
 
         acc_mean = (sequence == target).float().mean()
         entropy = Categorical(logits=logits).entropy()
-        self.log(prefix + "acc_mean", acc_mean, prog_bar=prog_bar)
+        self.log(prefix + "acc_mean", acc_mean)
         self.log(prefix + "entropy", entropy.mean())
 
         max_length = target.size(-1)
