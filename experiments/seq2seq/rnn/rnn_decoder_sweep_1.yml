@@ -17,7 +17,7 @@ parameters:
     value: True
   hidden_size:
     min: 4
-    max: 64
+    max: 256
   rnn_type:
     values: ["rnn", "lstm", "gru"]
   num_layers:

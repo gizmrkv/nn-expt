@@ -13,50 +13,72 @@ from nn_expt.callback import (
     PositionalProbabilityHeatmap,
     embedding_weight_heatmap,
     linear_weight_bias_heatmap,
+    rnn_weight_bias_heatmaps,
 )
 from nn_expt.data.sequence import SequenceIdentityDataModule
-from nn_expt.nn import Seq2SeqLinear
+from nn_expt.nn import Seq2SeqLinear, Seq2SeqRNNDecoder, Seq2SeqRNNEncoder
 from nn_expt.system import Seq2Seq2SeqSystem
 from nn_expt.utils import get_run_name
 
 
 def main():
-    wandb.init(
-        project="seq2seq2seq",
-    )
+    wandb.init(project="seq2seq2seq")
     config = wandb.config
 
     L.seed_everything(config.seed)
 
-    sender = Seq2SeqLinear(
-        config.vocab_size,
-        config.max_length,
-        config.z_vocab_size,
-        config.z_max_length,
-        embedding_dim=config.sender_embedding_dim,
-        one_hot=config.sender_one_hot,
-        noisy=config.sender_noisy,
-    )
+    if config.sender_rnn_mode == "encoder":
+        sender = Seq2SeqRNNEncoder(
+            config.z_vocab_size,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.sender_embedding_dim,
+            one_hot=config.sender_one_hot,
+            hidden_size=config.sender_hidden_size,
+            rnn_type=config.sender_rnn_type,
+            num_layers=config.sender_num_layers,
+            bias=config.sender_bias,
+            dropout=config.sender_dropout,
+            bidirectional=config.sender_bidirectional,
+        )
+    elif config.sender_rnn_mode == "decoder":
+        sender = Seq2SeqRNNDecoder(
+            config.z_vocab_size,
+            config.z_max_length,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.sender_embedding_dim,
+            one_hot=config.sender_one_hot,
+            hidden_size=config.sender_hidden_size,
+            rnn_type=config.sender_rnn_type,
+            num_layers=config.sender_num_layers,
+            bias=config.sender_bias,
+            dropout=config.sender_dropout,
+        )
+    else:
+        raise ValueError(f"Unknown decoder_rnn_type: {config.receiver_rnn_type}")
+
     receiver = Seq2SeqLinear(
-        config.z_vocab_size,
-        config.z_max_length,
         config.vocab_size,
         config.max_length,
+        config.z_vocab_size,
+        config.z_max_length,
         embedding_dim=config.receiver_embedding_dim,
         one_hot=config.receiver_one_hot,
     )
+
     system = Seq2Seq2SeqSystem(
-        sender,
         receiver,
+        sender,
         optimizer=torch.optim.Adam(
             [
                 {
-                    "params": sender.parameters(),
+                    "params": receiver.parameters(),
                     "lr": config.sender_lr,
                     "weight_decay": config.sender_weight_decay,
                 },
                 {
-                    "params": receiver.parameters(),
+                    "params": sender.parameters(),
                     "lr": config.receiver_lr,
                     "weight_decay": config.receiver_weight_decay,
                 },
@@ -85,6 +107,16 @@ def main():
                     name="sender_positional_probability",
                     frame_every_n_epochs=config.frame_every_n_epochs,
                 ),
+                PositionalProbabilityHeatmap(
+                    receiver,
+                    config.z_vocab_size,
+                    config.z_max_length,
+                    config.vocab_size,
+                    config.max_length,
+                    save_dir=log_dir,
+                    name="receiver_positional_probability",
+                    frame_every_n_epochs=config.frame_every_n_epochs,
+                ),
                 embedding_weight_heatmap(
                     sender.embedding,
                     save_dir=log_dir,
@@ -95,6 +127,12 @@ def main():
                     sender.linear,
                     save_dir=log_dir,
                     name="sender_linear",
+                    frame_every_n_epochs=config.frame_every_n_epochs,
+                ),
+                *rnn_weight_bias_heatmaps(
+                    sender.rnn,
+                    save_dir=log_dir,
+                    name="sender_rnn",
                     frame_every_n_epochs=config.frame_every_n_epochs,
                 ),
                 embedding_weight_heatmap(

@@ -108,6 +108,16 @@ def main():
                     name="sender_positional_probability",
                     frame_every_n_epochs=config.frame_every_n_epochs,
                 ),
+                PositionalProbabilityHeatmap(
+                    receiver,
+                    config.z_vocab_size,
+                    config.z_max_length,
+                    config.vocab_size,
+                    config.max_length,
+                    save_dir=log_dir,
+                    name="receiver_positional_probability",
+                    frame_every_n_epochs=config.frame_every_n_epochs,
+                ),
                 embedding_weight_heatmap(
                     sender.embedding,
                     save_dir=log_dir,
