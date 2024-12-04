@@ -9,8 +9,8 @@ parameters:
     value: 3
   vocab_size:
     value: 10
-  rnn_mode:
-    value: "decoder"
+  model_type:
+    value: "rnn_decoder"
   embedding_dim:
     value: 32
   one_hot:

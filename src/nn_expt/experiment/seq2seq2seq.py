@@ -1,43 +1,76 @@
-import argparse
 from pathlib import Path
 from typing import List
 
 import lightning as L
 import torch
-import yaml
 from lightning.pytorch.callbacks import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 
 import wandb
-from nn_expt.callback import (
-    PositionalProbabilityHeatmap,
-    embedding_weight_heatmap,
-    linear_weight_bias_heatmap,
-    rnn_weight_bias_heatmaps,
-)
+from nn_expt.callback import PositionalProbabilityHeatmap
 from nn_expt.data.sequence import SequenceIdentityDataModule
 from nn_expt.nn import Seq2SeqLinear, Seq2SeqRNNDecoder, Seq2SeqRNNEncoder
 from nn_expt.system import Seq2Seq2SeqSystem
 from nn_expt.utils import get_run_name
 
 
-def main():
+def run_seq2seq2seq():
     wandb.init(project="seq2seq2seq")
     config = wandb.config
 
     L.seed_everything(config.seed)
 
-    sender = Seq2SeqLinear(
-        config.vocab_size,
-        config.max_length,
-        config.z_vocab_size,
-        config.z_max_length,
-        embedding_dim=config.sender_embedding_dim,
-        one_hot=config.sender_one_hot,
-        noisy=config.sender_noisy,
-    )
+    if config.sender_type == "linear":
+        sender = Seq2SeqLinear(
+            config.z_vocab_size,
+            config.z_max_length,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.sender_embedding_dim,
+            one_hot=config.sender_one_hot,
+            noisy=config.sender_noisy,
+        )
+    elif config.sender_type == "rnn_encoder":
+        sender = Seq2SeqRNNEncoder(
+            config.z_vocab_size,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.sender_embedding_dim,
+            one_hot=config.sender_one_hot,
+            hidden_size=config.sender_hidden_size,
+            rnn_type=config.sender_rnn_type,
+            num_layers=config.sender_num_layers,
+            bias=config.sender_bias,
+            dropout=config.sender_dropout,
+            bidirectional=config.sender_bidirectional,
+        )
+    elif config.sender_type == "rnn_decoder":
+        sender = Seq2SeqRNNDecoder(
+            config.z_vocab_size,
+            config.z_max_length,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.sender_embedding_dim,
+            one_hot=config.sender_one_hot,
+            hidden_size=config.sender_hidden_size,
+            rnn_type=config.sender_rnn_type,
+            num_layers=config.sender_num_layers,
+            bias=config.sender_bias,
+            dropout=config.sender_dropout,
+        )
+    else:
+        raise ValueError(f"Unknown sender_type: {config.sender_type}")
 
-    if config.receiver_rnn_mode == "encoder":
+    if config.receiver_type == "linear":
+        receiver = Seq2SeqLinear(
+            config.z_vocab_size,
+            config.z_max_length,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.receiver_embedding_dim,
+            one_hot=config.receiver_one_hot,
+        )
+    elif config.receiver_type == "rnn_encoder":
         receiver = Seq2SeqRNNEncoder(
             config.z_vocab_size,
             config.vocab_size,
@@ -51,7 +84,7 @@ def main():
             dropout=config.receiver_dropout,
             bidirectional=config.receiver_bidirectional,
         )
-    elif config.receiver_rnn_mode == "decoder":
+    elif config.receiver_type == "rnn_decoder":
         receiver = Seq2SeqRNNDecoder(
             config.z_vocab_size,
             config.z_max_length,
@@ -66,7 +99,7 @@ def main():
             dropout=config.receiver_dropout,
         )
     else:
-        raise ValueError(f"Unknown decoder_rnn_type: {config.receiver_rnn_type}")
+        raise ValueError(f"Unknown receiver_type: {config.receiver_type}")
 
     system = Seq2Seq2SeqSystem(
         sender,
@@ -74,12 +107,12 @@ def main():
         optimizer=torch.optim.Adam(
             [
                 {
-                    "params": sender.parameters(),
+                    "params": receiver.parameters(),
                     "lr": config.sender_lr,
                     "weight_decay": config.sender_weight_decay,
                 },
                 {
-                    "params": receiver.parameters(),
+                    "params": sender.parameters(),
                     "lr": config.receiver_lr,
                     "weight_decay": config.receiver_weight_decay,
                 },
@@ -118,36 +151,6 @@ def main():
                     name="receiver_positional_probability",
                     frame_every_n_epochs=config.frame_every_n_epochs,
                 ),
-                embedding_weight_heatmap(
-                    sender.embedding,
-                    save_dir=log_dir,
-                    name="sender_embedding",
-                    frame_every_n_epochs=config.frame_every_n_epochs,
-                ),
-                linear_weight_bias_heatmap(
-                    sender.linear,
-                    save_dir=log_dir,
-                    name="sender_linear",
-                    frame_every_n_epochs=config.frame_every_n_epochs,
-                ),
-                embedding_weight_heatmap(
-                    receiver.embedding,
-                    save_dir=log_dir,
-                    name="receiver_embedding",
-                    frame_every_n_epochs=config.frame_every_n_epochs,
-                ),
-                linear_weight_bias_heatmap(
-                    receiver.linear,
-                    save_dir=log_dir,
-                    name="receiver_linear",
-                    frame_every_n_epochs=config.frame_every_n_epochs,
-                ),
-                *rnn_weight_bias_heatmaps(
-                    receiver.rnn,
-                    save_dir=log_dir,
-                    name="receiver_rnn",
-                    frame_every_n_epochs=config.frame_every_n_epochs,
-                ),
             ]
         )
 
@@ -166,24 +169,3 @@ def main():
         n_repeats=config.n_repeats,
     )
     trainer.fit(system, datamodule)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--sweep_id", "-s", type=str, default=None)
-    parser.add_argument("--config_path", "-c", type=str, default=None)
-
-    args = parser.parse_args()
-    sweep_id: str | None = args.sweep_id
-    config_path: str | None = args.config_path
-
-    if sweep_id is None and config_path is not None:
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-
-        sweep_id = wandb.sweep(config, project="seq2seq2seq")
-
-    if sweep_id is None:
-        raise ValueError("Wrong sweep_id or config_path")
-
-    wandb.agent(sweep_id, function=main)

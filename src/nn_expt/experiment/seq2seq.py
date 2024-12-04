@@ -1,40 +1,66 @@
-import argparse
 from pathlib import Path
 from typing import List
 
 import lightning as L
 import torch
-import yaml
+import wandb
 from lightning.pytorch.callbacks import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 
-import wandb
-from nn_expt.callback import (
-    PositionalProbabilityHeatmap,
-    embedding_weight_heatmap,
-    linear_weight_bias_heatmap,
-)
+from nn_expt.callback import PositionalProbabilityHeatmap
 from nn_expt.data.sequence import SequenceIdentityDataModule
-from nn_expt.nn import Seq2SeqLinear
+from nn_expt.nn import Seq2SeqLinear, Seq2SeqRNNDecoder, Seq2SeqRNNEncoder
 from nn_expt.system.seq2seq import Seq2SeqSystem
 from nn_expt.utils import get_run_name
 
 
-def main():
+def run_seq2seq():
     wandb.init(project="seq2seq")
     config = wandb.config
 
     L.seed_everything(config.seed)
 
-    model = Seq2SeqLinear(
-        config.vocab_size,
-        config.max_length,
-        config.vocab_size,
-        config.max_length,
-        embedding_dim=config.embedding_dim,
-        one_hot=config.one_hot,
-        noisy=config.noisy,
-    )
+    if config.model_type == "linear":
+        model = Seq2SeqLinear(
+            config.vocab_size,
+            config.max_length,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.embedding_dim,
+            one_hot=config.one_hot,
+            noisy=config.noisy,
+        )
+    elif config.model_type == "rnn_encoder":
+        model = Seq2SeqRNNEncoder(
+            config.vocab_size,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.embedding_dim,
+            one_hot=config.one_hot,
+            hidden_size=config.hidden_size,
+            rnn_type=config.rnn_type,
+            num_layers=config.num_layers,
+            bias=config.bias,
+            dropout=config.dropout,
+            bidirectional=config.bidirectional,
+        )
+    elif config.model_type == "rnn_decoder":
+        model = Seq2SeqRNNDecoder(
+            config.vocab_size,
+            config.max_length,
+            config.vocab_size,
+            config.max_length,
+            embedding_dim=config.embedding_dim,
+            one_hot=config.one_hot,
+            hidden_size=config.hidden_size,
+            rnn_type=config.rnn_type,
+            num_layers=config.num_layers,
+            bias=config.bias,
+            dropout=config.dropout,
+        )
+    else:
+        raise ValueError(f"Unknown model_type: {config.model_type}")
+
     system = Seq2SeqSystem(
         model,
         optimizer=torch.optim.Adam(
@@ -61,19 +87,7 @@ def main():
                     save_dir=log_dir,
                     name="positional_probability",
                     frame_every_n_epochs=config.frame_every_n_epochs,
-                ),
-                embedding_weight_heatmap(
-                    model.embedding,
-                    save_dir=log_dir,
-                    name="embedding",
-                    frame_every_n_epochs=config.frame_every_n_epochs,
-                ),
-                linear_weight_bias_heatmap(
-                    model.linear,
-                    save_dir=log_dir,
-                    name="linear",
-                    frame_every_n_epochs=config.frame_every_n_epochs,
-                ),
+                )
             ]
         )
 
@@ -92,24 +106,3 @@ def main():
         n_repeats=config.n_repeats,
     )
     trainer.fit(system, datamodule)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--sweep_id", "-s", type=str, default=None)
-    parser.add_argument("--config_path", "-c", type=str, default=None)
-
-    args = parser.parse_args()
-    sweep_id: str | None = args.sweep_id
-    config_path: str | None = args.config_path
-
-    if sweep_id is None and config_path is not None:
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-
-        sweep_id = wandb.sweep(config, project="seq2seq")
-
-    if sweep_id is None:
-        raise ValueError("Wrong sweep_id or config_path")
-
-    wandb.agent(sweep_id, function=main)

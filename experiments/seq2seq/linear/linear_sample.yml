@@ -8,27 +8,17 @@ parameters:
   max_length:
     value: 3
   vocab_size:
-    value: 10
-  rnn_mode:
-    value: "encoder"
+    value: 30
+  model_type:
+    value: "linear"
   embedding_dim:
-    value: 32
-  one_hot:
-    value: True
-  hidden_size:
     value: 64
-  rnn_type:
-    value: "rnn"
-  num_layers:
-    value: 1
-  bias:
-    value: True
-  dropout:
-    value: 0.0
-  bidirectional:
+  one_hot:
     value: False
+  noisy:
+    value: True
   lr:
-    value: 0.08
+    value: 0.001
   weight_decay:
     value: 0.0
   max_epochs:
@@ -42,6 +32,6 @@ parameters:
   num_workers:
     value: 0
   n_repeats:
-    value: 10
+    value: 1
   patience:
-    value: 50
+    value: 10
