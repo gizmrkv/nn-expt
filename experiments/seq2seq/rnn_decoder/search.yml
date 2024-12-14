@@ -1,0 +1,57 @@
+sampler: auto
+study_name: seq2seq-rnn-decoder
+direction: minimize
+load_if_exists: True
+n_trials: 100000
+n_jobs: 1
+search_space:
+  seed:
+    value: 42
+  max_length:
+    value: 3
+  vocab_size:
+    value: 10
+  model_type:
+    value: "rnn_decoder"
+  model_params:
+    values:
+      embedding_dim:
+        value: 32
+      one_hot:
+        value: True
+      hidden_size:
+        min: 4
+        max: 256
+      rnn_type:
+        values: ["rnn", "lstm", "gru"]
+      num_layers:
+        min: 1
+        max: 3
+      bias:
+        values: [True, False]
+      dropout:
+        min: 0.0
+        max: 1.0
+  optimizer_params:
+    values:
+      lr:
+        min: 0.01
+        max: 1.0
+        log: True
+      weight_decay:
+        value: 0.0
+      momentum:
+        min: 0.95
+        max: 1.0
+  max_epochs:
+    value: 50
+  frame_every_n_epochs:
+    value: -1
+  batch_size:
+    value: 10000
+  train_ratio:
+    value: 0.8
+  num_workers:
+    value: 0
+  n_repeats:
+    value: 10

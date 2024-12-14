@@ -14,7 +14,7 @@ class Seq2SeqRNNEncoder(nn.Module):
         embedding_dim: int,
         one_hot: bool = False,
         hidden_size: int,
-        rnn_type: Literal["rnn", "lstm", "gru"] = "gru",
+        rnn_type: Literal["rnn", "lstm", "gru"] = "rnn",
         num_layers: int = 1,
         bias: bool = True,
         dropout: float = 0.0,

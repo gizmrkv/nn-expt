@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Dict, Tuple
 
 import lightning as L
 import torch
@@ -28,9 +28,8 @@ class Seq2Seq2SeqSystem(L.LightningModule):
         batch: Tuple[torch.Tensor, torch.Tensor],
         batch_idx: int,
         *,
-        prog_bar: bool = False,
         prefix: str = "train/",
-    ) -> torch.Tensor:
+    ) -> Dict[str, torch.Tensor]:
         input, target = batch
         logits_s = self.sender(input)
 
@@ -53,7 +52,7 @@ class Seq2Seq2SeqSystem(L.LightningModule):
             sequence = logits_r.argmax(dim=-1)
 
         loss_s, loss_r = self.calc_loss(logits_s, logits_r, z, target)
-        self.log_metrics(
+        metrics = self.log_metrics(
             loss_s,
             loss_r,
             logits_s,
@@ -61,20 +60,20 @@ class Seq2Seq2SeqSystem(L.LightningModule):
             z,
             sequence,
             target,
-            prog_bar=prog_bar,
             prefix=prefix,
         )
-        return (loss_s + loss_r).mean()
+        metrics["loss"] = (loss_s + loss_r).mean()
+        return metrics
 
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
-        return self.step(batch, batch_idx, prog_bar=True, prefix="train/")
+    ) -> Dict[str, torch.Tensor]:
+        return self.step(batch, batch_idx, prefix="train/")
 
     def validation_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
-        return self.step(batch, batch_idx, prog_bar=True, prefix="val/")
+    ) -> Dict[str, torch.Tensor]:
+        return self.step(batch, batch_idx, prefix="val/")
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return self.optimizer or torch.optim.Adam(self.parameters())
@@ -89,47 +88,52 @@ class Seq2Seq2SeqSystem(L.LightningModule):
         sequence: torch.Tensor,
         target: torch.Tensor,
         *,
-        prog_bar: bool = False,
         prefix: str = "train/",
     ):
-        self.log(prefix + "sender_loss", sender_loss.mean())
-        self.log(prefix + "receiver_loss", receiver_loss.mean(), prog_bar=prog_bar)
-        self.log(prefix + "loss", (sender_loss + receiver_loss).mean())
+        metrics: Dict[str, torch.Tensor] = {}
+        metrics[prefix + "sender_loss"] = sender_loss.mean()
+        metrics[prefix + "receiver_loss"] = receiver_loss.mean()
+        metrics[prefix + "loss"] = (sender_loss + receiver_loss).mean()
 
         acc_mean = (sequence == target).float().mean()
         entropy_s = Categorical(logits=sender_logits).entropy()
         entropy_r = Categorical(logits=receiver_logits).entropy()
-        self.log(prefix + "acc_mean", acc_mean)
-        self.log(prefix + "sender_entropy", entropy_s.mean())
-        self.log(prefix + "receiver_entropy", entropy_r.mean())
+        metrics[prefix + "acc_mean"] = acc_mean
+        metrics[prefix + "sender_entropy"] = entropy_s.mean()
+        metrics[prefix + "receiver_entropy"] = entropy_r.mean()
 
         z_max_length = z.size(-1)
         zero_pad = len(str(z_max_length - 1))
         for i in range(z_max_length):
             ent_i = entropy_s[:, i].mean()
-            self.log(prefix + f"sender_ent_{i:0{zero_pad}}", ent_i)
+            metrics[prefix + f"sender_ent_{i:0{zero_pad}}"] = ent_i
 
         max_length = target.size(-1)
         zero_pad = len(str(max_length - 1))
         for i in range(max_length):
             acc_i = (sequence[:, i] == target[:, i]).float().mean()
             ent_i = entropy_r[:, i].mean()
-            self.log(prefix + f"acc_{i:0{zero_pad}}", acc_i)
-            self.log(prefix + f"receiver_ent_{i:0{zero_pad}}", ent_i)
+            metrics[prefix + f"acc_{i:0{zero_pad}}"] = acc_i
+            metrics[prefix + f"receiver_ent_{i:0{zero_pad}}"] = ent_i
 
         grad_norms_s = [
             p.grad.norm() for p in self.sender.parameters() if p.grad is not None
         ]
         if grad_norms_s:
-            grad_norm_s = torch.stack(grad_norms_s).mean().item()
-            self.log(prefix + "sender_grad_norm", grad_norm_s)
+            grad_norm_s = torch.stack(grad_norms_s).mean()
+            metrics[prefix + "sender_grad_norm"] = grad_norm_s
 
         grad_norms_r = [
             p.grad.norm() for p in self.receiver.parameters() if p.grad is not None
         ]
         if grad_norms_r:
-            grad_norm_r = torch.stack(grad_norms_r).mean().item()
-            self.log(prefix + "receiver_grad_norm", grad_norm_r)
+            grad_norm_r = torch.stack(grad_norms_r).mean()
+            metrics[prefix + "receiver_grad_norm"] = grad_norm_r
+
+        for k, v in metrics.items():
+            self.log(k, v.mean(), prog_bar=k.endswith("receiver_loss"))
+
+        return metrics
 
     def calc_loss(
         self,

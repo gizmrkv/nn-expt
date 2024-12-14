@@ -1,6 +1,5 @@
 import itertools
 from pathlib import Path
-from typing import Callable, List
 
 import lightning as L
 import matplotlib.pyplot as plt

@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Dict, Tuple
 
 import lightning as L
 import torch
@@ -26,9 +26,8 @@ class Seq2SeqSystem(L.LightningModule):
         batch: Tuple[torch.Tensor, torch.Tensor],
         batch_idx: int,
         *,
-        prog_bar: bool = False,
         prefix: str = "train/",
-    ) -> torch.Tensor:
+    ) -> Dict[str, torch.Tensor]:
         input, target = batch
         logits = self.model(input)
 
@@ -41,25 +40,25 @@ class Seq2SeqSystem(L.LightningModule):
             sequence = logits.argmax(dim=-1)
 
         loss = self.calc_loss(logits, sequence, target)
-        self.log_metrics(
+        metrics = self.log_metrics(
             loss,
             logits,
             sequence,
             target,
-            prog_bar=prog_bar,
             prefix=prefix,
         )
-        return loss.mean()
+        metrics["loss"] = loss.mean()
+        return metrics
 
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
-        return self.step(batch, batch_idx, prog_bar=True, prefix="train/")
+    ) -> Dict[str, torch.Tensor]:
+        return self.step(batch, batch_idx, prefix="train/")
 
     def validation_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
-        return self.step(batch, batch_idx, prog_bar=True, prefix="val/")
+    ) -> Dict[str, torch.Tensor]:
+        return self.step(batch, batch_idx, prefix="val/")
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return self.optimizer or torch.optim.Adam(self.model.parameters())
@@ -71,30 +70,35 @@ class Seq2SeqSystem(L.LightningModule):
         sequence: torch.Tensor,
         target: torch.Tensor,
         *,
-        prog_bar: bool = False,
         prefix: str = "train/",
-    ):
-        self.log(prefix + "loss", loss.mean(), prog_bar=prog_bar)
+    ) -> Dict[str, torch.Tensor]:
+        metrics: Dict[str, torch.Tensor] = {}
+        metrics[prefix + "loss"] = loss.mean()
 
         acc_mean = (sequence == target).float().mean()
         entropy = Categorical(logits=logits).entropy()
-        self.log(prefix + "acc_mean", acc_mean)
-        self.log(prefix + "entropy", entropy.mean())
+        metrics[prefix + "acc_mean"] = acc_mean
+        metrics[prefix + "entropy"] = entropy.mean()
 
         max_length = target.size(-1)
         zero_pad = len(str(max_length - 1))
         for i in range(max_length):
             acc_i = (sequence[:, i] == target[:, i]).float().mean()
             ent_i = entropy[:, i].mean()
-            self.log(prefix + f"acc_{i:0{zero_pad}}", acc_i)
-            self.log(prefix + f"ent_{i:0{zero_pad}}", ent_i)
+            metrics[prefix + f"acc_{i:0{zero_pad}}"] = acc_i
+            metrics[prefix + f"ent_{i:0{zero_pad}}"] = ent_i
 
         grad_norms = [
             p.grad.norm() for p in self.model.parameters() if p.grad is not None
         ]
         if grad_norms:
-            grad_norm = torch.stack(grad_norms).mean().item()
-            self.log(prefix + "grad_norm", grad_norm)
+            grad_norm = torch.stack(grad_norms).mean()
+            metrics[prefix + "grad_norm"] = grad_norm
+
+        for k, v in metrics.items():
+            self.log(k, v.mean(), prog_bar=k.endswith("loss"))
+
+        return metrics
 
     def calc_loss(
         self, logits: torch.Tensor, sequence: torch.Tensor, target: torch.Tensor

@@ -1,3 +1,4 @@
+from .objective_tracker import ObjectiveTracker
 from .positional_probability_heatmap import PositionalProbabilityHeatmap
 from .weight_bias_heatmap import (
     WeightBiasHeatmap,
@@ -7,6 +8,7 @@ from .weight_bias_heatmap import (
 )
 
 __all__ = [
+    "ObjectiveTracker",
     "PositionalProbabilityHeatmap",
     "WeightBiasHeatmap",
     "embedding_weight_heatmap",

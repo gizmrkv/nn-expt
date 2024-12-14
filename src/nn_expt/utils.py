@@ -1,7 +1,9 @@
 import datetime
-from typing import Any, Callable
+import json
+from pathlib import Path
+from typing import Any, Dict
 
-import wandb
+import toml
 import yaml
 
 
@@ -9,24 +11,16 @@ def get_run_name() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
-def wandb_sweep(
-    function: Callable[[], Any],
-    *,
-    sweep_id: str | None = None,
-    config_path: str | None = None,
-    entity: str | None = None,
-    project: str | None = None,
-    count: int | None = None,
-):
-    if sweep_id is None and config_path is not None:
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-
-        sweep_id = wandb.sweep(config, project="seq2seq2seq")
-
-    if sweep_id is None:
-        raise ValueError("Wrong sweep_id or config_path")
-
-    wandb.agent(
-        sweep_id, function=function, entity=entity, project=project, count=count
-    )
+def load_config(path: str | Path) -> Dict[str, Any]:
+    if isinstance(path, str):
+        path = Path(path)
+    if path.suffix == ".json":
+        with path.open() as f:
+            return json.load(f)
+    elif path.suffix in [".yaml", ".yml"]:
+        with path.open() as f:
+            return yaml.safe_load(f)
+    elif path.suffix == ".toml":
+        return toml.load(path)
+    else:
+        raise ValueError(f"Unsupported file type: {path.suffix}")

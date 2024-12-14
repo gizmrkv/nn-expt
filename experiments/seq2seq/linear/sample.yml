@@ -1,0 +1,42 @@
+sampler: grid
+study_name: seq2seq
+direction: minimize
+load_if_exists: True
+n_trials: 100000
+n_jobs: 1
+show_progress_bar: True
+search_space:
+  seed:
+    value: 42
+  max_length:
+    value: 3
+  vocab_size:
+    value: 10
+  model_type:
+    value: "linear"
+  model_params:
+    values:
+      one_hot:
+        value: True
+      noisy:
+        value: True
+  optimizer_params:
+    values:
+      lr:
+        value: 0.8
+      weight_decay:
+        value: 0.0
+      momentum:
+        value: 0.99
+  max_epochs:
+    value: 50
+  frame_every_n_epochs:
+    value: 1
+  batch_size:
+    value: 10000
+  train_ratio:
+    value: 0.8
+  num_workers:
+    value: 0
+  n_repeats:
+    value: 10
