@@ -1,8 +1,38 @@
+import json
+from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping
 
 import optuna
 import optuna.storages.journal
 import optunahub
+import toml
+import yaml
+
+
+def load_config(path: str | Path) -> Dict[str, Any]:
+    if isinstance(path, str):
+        path = Path(path)
+    if path.suffix == ".json":
+        with path.open() as f:
+            return json.load(f)
+    elif path.suffix in [".yaml", ".yml"]:
+        with path.open() as f:
+            return yaml.safe_load(f)
+    elif path.suffix == ".toml":
+        return toml.load(path)
+    else:
+        raise ValueError(f"Unsupported file type: {path.suffix}")
+
+
+def merge_dicts(*dicts: Dict[str, Any]) -> Dict[str, Any]:
+    merged = {}
+    for d in dicts:
+        duplicated_keys = set(merged.keys()) & set(d.keys())
+        if duplicated_keys:
+            raise ValueError(f"Duplicated keys: {duplicated_keys}")
+
+        merged |= d
+    return merged
 
 
 def is_valid_clause(
@@ -45,40 +75,93 @@ def parse_grid_search_space(
     return grid_space
 
 
+def embed_search_space(
+    search_space: Dict[str, Any], base_dir: str | Path = "."
+) -> Dict[str, Any]:
+    base_dir = Path(base_dir)
+
+    if "$path" in search_space:
+        path = search_space["$path"]
+        if not isinstance(path, str):
+            raise ValueError(
+                f"Invalid configuration for '$path': must be a string. Got {path}"
+            )
+
+        file_path = base_dir / path
+        loaded_space = embed_search_space(load_config(file_path), file_path.parent)
+        search_space.pop("$path")
+        search_space = merge_dicts(loaded_space, search_space)
+        return search_space
+
+    elif "$paths" in search_space:
+        paths = search_space["$paths"]
+        if not isinstance(paths, (list, tuple)):
+            raise ValueError(
+                f"Invalid configuration for '$paths': must be a list or a tuple. Got {paths}"
+            )
+
+        file_paths = [base_dir / p for p in paths]
+        merged_dict = merge_dicts(
+            *[embed_search_space(load_config(fp), fp.parent) for fp in file_paths]
+        )
+
+        search_space.pop("$paths")
+        search_space = merge_dicts(merged_dict, search_space)
+        return search_space
+
+    else:
+        return search_space
+
+
 def suggest_sample(
-    trial: optuna.Trial, search_space: Mapping[str, Mapping[str, Any]]
+    trial: optuna.Trial, search_space: Mapping[str, Mapping[str, Any]], prefix: str = ""
 ) -> Dict[str, Any]:
     sample: Dict[str, Any] = {}
     for var_name, var_space in search_space.items():
         if is_valid_clause(var_space, "value"):
             sample[var_name] = var_space["value"]
+
         elif is_valid_clause(var_space, "values"):
             values = var_space["values"]
+
             if isinstance(values, dict):
-                sample[var_name] = suggest_sample(trial, values)
+                sample[var_name] = suggest_sample(
+                    trial, values, prefix=prefix + var_name + "/"
+                )
+
             elif isinstance(values, (list, tuple)):
-                sample[var_name] = trial.suggest_categorical(var_name, values)
+                sample[var_name] = trial.suggest_categorical(prefix + var_name, values)
+
+            else:
+                raise ValueError(
+                    f"Invalid configuration for '{var_name}': 'values' must be a list or a dictionary. Got {values}"
+                )
+
         elif is_valid_clause(var_space, "min", "max", optional=["log", "step"]):
             min_v = var_space["min"]
             max_v = var_space["max"]
+
             if isinstance(min_v, int) and isinstance(max_v, int):
                 step = var_space.get("step", 1)
-                sample[var_name] = trial.suggest_int(var_name, min_v, max_v, step=step)
+                sample[var_name] = trial.suggest_int(
+                    prefix + var_name, min_v, max_v, step=step
+                )
+
             elif isinstance(min_v, float) and isinstance(max_v, float):
                 log = var_space.get("log", False)
                 step = var_space.get("step", None)
                 sample[var_name] = trial.suggest_float(
-                    var_name, min_v, max_v, log=log, step=step
+                    prefix + var_name, min_v, max_v, log=log, step=step
                 )
+
             else:
                 raise ValueError(
-                    f"Invalid configuration for '{var_name}': 'min' and 'max' must be of the same type (both int or both float)."
+                    f"Invalid configuration for '{var_name}': 'min' and 'max' must be of the same type (both int or both float). Got {min_v} and {max_v}"
                 )
-        elif is_valid_clause(var_space, "recursive"):
-            sample[var_name] = suggest_sample(trial, var_space["recursive"])
+
         else:
             raise ValueError(
-                f"Invalid configuration for '{var_name}': must contain 'value', 'values', or 'min' and 'max'."
+                f"Invalid configuration for '{var_name}': must contain 'value', 'values', or 'min' and 'max'. Got {var_space}"
             )
 
     return sample
@@ -86,11 +169,14 @@ def suggest_sample(
 
 def optimize(
     objective: Callable[..., Any],
-    config: Dict[str, Any],
+    config_path: Path | str,
     *,
     journal_file: str = "./journal.log",
     storage: optuna.storages.BaseStorage | None = None,
 ):
+    config_path = Path(config_path)
+    config = load_config(config_path)
+
     sampler_type = config.get("sampler", None)
     sampler_parameters = config.get("sampler_parameters", {})
     pruner_type = config.get("pruner", None)
@@ -98,12 +184,14 @@ def optimize(
     study_name = config.get("study_name", None)
     direction = config.get("direction", None)
     load_if_exists = config.get("load_if_exists", False)
-    search_space = config.get("search_space", {})
     n_trials = config.get("n_trials", None)
     timeout = config.get("timeout", None)
     n_jobs = config.get("n_jobs", None)
     gc_after_trial = config.get("gc_after_trial", False)
     show_progress_bar = config.get("show_progress_bar", False)
+
+    search_space = config.get("search_space", {})
+    search_space = embed_search_space(search_space, base_dir=config_path.parent)
 
     sampler_types = {
         "grid": optuna.samplers.GridSampler,
@@ -153,7 +241,7 @@ def optimize(
         search_space: Mapping[str, Mapping[str, Any]],
     ) -> Callable[[optuna.Trial], Any]:
         def _objective(trial: optuna.Trial) -> Any:
-            return objective(**suggest_sample(trial, search_space))
+            return objective(**suggest_sample(trial, search_space), trial=trial)
 
         return _objective
 
