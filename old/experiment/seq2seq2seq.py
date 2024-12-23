@@ -2,12 +2,12 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import lightning as L
+import optuna
 import torch
-from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.loggers import TensorBoardLogger
 
-import wandb
 from nn_expt.callback import ObjectiveTracker, PositionalProbabilityHeatmap
-from nn_expt.data.sequence import SequenceIdentityDataModule
+from nn_expt.data.sequence import Seq2SeqDataModule
 from nn_expt.nn import Seq2SeqLinear, Seq2SeqRNNDecoder, Seq2SeqRNNEncoder
 from nn_expt.system import Seq2Seq2SeqSystem
 from nn_expt.utils import get_run_name
@@ -33,20 +33,29 @@ def run_seq2seq2seq(
     n_repeats: int,
     seed: int,
     frame_every_n_epochs: int = 1,
+    trial: optuna.Trial,
 ):
     L.seed_everything(seed)
 
+    hparams = locals()
+
+    run_name = get_run_name()
+    log_dir = Path("out/logs") / run_name
+
+    tb_logger = TensorBoardLogger("out/logs", name=f"{trial.number:08}")
+    tb_logger.log_hyperparams(hparams)
+
     if sender_model_type == "linear":
         sender = Seq2SeqLinear(
-            z_vocab_size, z_max_length, vocab_size, max_length, **sender_model_params
+            vocab_size, max_length, z_vocab_size, z_max_length, **sender_model_params
         )
     elif sender_model_type == "rnn_encoder":
         sender = Seq2SeqRNNEncoder(
-            z_vocab_size, vocab_size, max_length, **sender_model_params
+            vocab_size, z_vocab_size, z_max_length, **sender_model_params
         )
     elif sender_model_type == "rnn_decoder":
         sender = Seq2SeqRNNDecoder(
-            z_vocab_size, z_max_length, vocab_size, max_length, **sender_model_params
+            vocab_size, max_length, z_vocab_size, z_max_length, **sender_model_params
         )
     else:
         raise ValueError(f"Unknown sender_type: {sender_model_type}")
@@ -77,10 +86,6 @@ def run_seq2seq2seq(
         ),
         sender_entropy_weight=sender_entropy_weight,
     )
-
-    run_name = get_run_name()
-    log_dir = Path("logs") / run_name
-    wandb_logger = WandbLogger(run_name, project="seq2seq2seq")
 
     objective_tracker = ObjectiveTracker("val/receiver_loss")
     callbacks: List[L.Callback] = [objective_tracker]
@@ -113,21 +118,20 @@ def run_seq2seq2seq(
     trainer = L.Trainer(
         max_epochs=max_epochs,
         log_every_n_steps=1,
-        logger=wandb_logger,
+        logger=tb_logger,
         callbacks=callbacks,
     )
-    datamodule = SequenceIdentityDataModule(
+    datamodule = Seq2SeqDataModule(
         max_length,
         vocab_size,
         batch_size,
         train_ratio=train_ratio,
         num_workers=num_workers,
-        n_repeats=n_repeats,
+        num_repeats=n_repeats,
     )
 
     trainer.fit(system, datamodule)
 
-    wandb_logger.finalize("success")
-    wandb.finish()
+    tb_logger.finalize("success")
 
     return objective_tracker.best_value or float("nan")

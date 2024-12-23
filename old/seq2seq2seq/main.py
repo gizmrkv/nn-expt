@@ -8,5 +8,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", "-c", type=str, default=None)
     args = parser.parse_args()
+
     config = load_config(args.config)
     optimize(run_seq2seq2seq, config)

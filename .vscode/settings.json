@@ -6,7 +6,18 @@
             "source.unusedImports": "never"
         },
         "editor.defaultFormatter": "charliermarsh.ruff",
-        "editor.formatOnSave": true,
+        "editor.formatOnSave": true
+    },
+    "[toml]": {
+        "editor.defaultFormatter": "tamasfe.even-better-toml",
+        "editor.formatOnSave": true
+    },
+    "[yaml]": {
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.autoIndent": "advanced",
+        "editor.defaultColorDecorators": "always",
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
     },
     "cSpell.words": [
         "aggs",
@@ -26,13 +37,17 @@
         "expt",
         "figsize",
         "heatmaps",
+        "hparams",
+        "hyperparams",
         "imread",
         "joblib",
+        "kwargs",
         "libx",
         "linears",
         "linewidth",
         "linewidths",
         "logvar",
+        "MLPMLP",
         "moviepy",
         "multinomial",
         "ndarray",
@@ -82,6 +97,7 @@
     },
     "notebook.formatOnSave.enabled": true,
     "python.analysis.diagnosticSeverityOverrides": {
+        "reportAttributeAccessIssue": "none",
         "reportMissingTypeStubs": "none",
         "reportPrivateImportUsage": "none",
         "reportUnknownArgumentType": "none",

@@ -1,0 +1,47 @@
+sampler: qmc
+study_name: seq2seq2seq_embedding_embedding_sample
+direction: minimize
+load_if_exists: True
+n_trials: 1
+n_jobs: 1
+search_space:
+  vocab_size:
+    value: 10
+  seq_len:
+    value: 3
+  system_kwargs:
+    values:
+      sender_entropy_weight:
+        value: 0.5
+      optimizer_class:
+        value: sgd
+      sender_optimizer_kwargs:
+        values:
+          lr:
+            value: 0.2
+          weight_decay:
+            value: 0.0
+          momentum:
+            value: 0.9
+      receiver_optimizer_kwargs:
+        values:
+          lr:
+            value: 0.2
+          weight_decay:
+            value: 0.0
+          momentum:
+            value: 0.9
+  max_epochs:
+    value: 501
+  batch_size:
+    value: 100000
+  train_ratio:
+    value: 0.8
+  num_workers:
+    value: 0
+  num_repeats:
+    value: 10
+  frame_every_n_epochs:
+    value: 1
+  seed:
+    value: 42

@@ -1,0 +1,79 @@
+vocab_size:
+  value: 10
+seq_len:
+  value: 3
+z_vocab_size:
+  value: 10
+z_seq_len:
+  value: 3
+system_kwargs:
+  values:
+    sender_entropy_weight:
+      min: 0.0
+      max: 1.0
+    # sender_embedding_dim:
+    #   value: 10
+    # sender_embedding_init_std:
+    #   value: 0.1
+    sender_mlp_kwargs:
+      values:
+        depth:
+          value: 0
+        # num_cells:
+        #   value: 32
+        # activation_class:
+        #   value: relu
+        # dropout:
+        #   value: 0.1
+    # receiver_embedding_dim:
+    #   value: 10
+    # receiver_embedding_init_std:
+    #   value: 0.1
+    receiver_mlp_kwargs:
+      values:
+        depth:
+          value: 0
+        # num_cells:
+        #   value: 32
+        # activation_class:
+        #   value: relu
+        # dropout:
+        #   value: 0.1
+    optimizer_class:
+      value: sgd
+    sender_optimizer_kwargs:
+      values:
+        lr:
+          min: 0.01
+          max: 1.0
+          log: True
+        weight_decay:
+          min: 0.0
+          max: 0.001
+        momentum:
+          min: 0.9
+          max: 1.0
+    receiver_optimizer_kwargs:
+      values:
+        lr:
+          min: 0.01
+          max: 1.0
+          log: True
+        weight_decay:
+          min: 0.0
+          max: 0.001
+        momentum:
+          min: 0.9
+          max: 1.0
+max_epochs:
+  value: 401
+batch_size:
+  value: 100000
+train_ratio:
+  value: 0.8
+num_workers:
+  value: 0
+num_repeats:
+  value: 10
+# frame_every_n_epochs:
+#   value: 1

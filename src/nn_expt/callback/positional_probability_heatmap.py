@@ -1,5 +1,6 @@
 import itertools
 from pathlib import Path
+from typing import Callable
 
 import lightning as L
 import matplotlib.pyplot as plt
@@ -15,11 +16,11 @@ from moviepy.editor import ImageSequenceClip
 class PositionalProbabilityHeatmap(L.Callback):
     def __init__(
         self,
-        sender: nn.Module,
-        vocab_size: int,
-        max_length: int,
-        z_vocab_size: int,
-        z_max_length: int,
+        sender: nn.Module | Callable[[torch.Tensor], torch.Tensor],
+        in_vocab_size: int,
+        in_seq_len: int,
+        out_vocab_size: int,
+        out_seq_len: int,
         *,
         save_dir: str | Path,
         name: str,
@@ -28,17 +29,17 @@ class PositionalProbabilityHeatmap(L.Callback):
     ):
         super().__init__()
         self.sender = sender
-        self.vocab_size = vocab_size
-        self.max_length = max_length
-        self.z_vocab_size = z_vocab_size
-        self.z_max_length = z_max_length
+        self.in_vocab_size = in_vocab_size
+        self.in_seq_len = in_seq_len
+        self.out_vocab_size = out_vocab_size
+        self.out_seq_len = out_seq_len
         self.save_dir = Path(save_dir) / name
         self.name = name
         self.fps = fps
         self.frame_every_n_epochs = frame_every_n_epochs
 
         self.data = torch.tensor(
-            list(itertools.product(range(vocab_size), repeat=max_length)),
+            list(itertools.product(range(in_vocab_size), repeat=in_seq_len)),
             dtype=torch.long,
         )
 
@@ -56,16 +57,16 @@ class PositionalProbabilityHeatmap(L.Callback):
                 output, *_ = output
 
             output = output.softmax(dim=-1)
-            output = output.view(-1, self.z_vocab_size * self.z_max_length)
+            output = output.view(-1, self.out_vocab_size * self.out_seq_len)
             output = torch.concat([self.data.cpu(), output.cpu()], dim=1)
 
         data = pl.from_numpy(
             output.numpy(),
-            schema=[f"i_{i}" for i in range(self.max_length)]
+            schema=[f"i_{i}" for i in range(self.in_seq_len)]
             + [
                 f"o_{i}_{j}"
-                for i in range(self.z_vocab_size)
-                for j in range(self.z_max_length)
+                for i in range(self.out_vocab_size)
+                for j in range(self.out_seq_len)
             ],
         ).with_columns(cs.starts_with("i").cast(pl.Int32))
         data = pl.concat(
@@ -77,7 +78,7 @@ class PositionalProbabilityHeatmap(L.Callback):
                     cs.starts_with("o").std().name.suffix("_std"),
                 )
                 .drop(f"i_{i}")
-                for i in range(self.max_length)
+                for i in range(self.in_seq_len)
             ]
         )
 

@@ -1,5 +1,3 @@
-import logging
-
 import torch
 import torchrl.modules
 from torch import nn

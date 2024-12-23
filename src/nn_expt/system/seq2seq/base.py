@@ -2,34 +2,22 @@ from typing import Dict, Tuple
 
 import lightning as L
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
 
 class Seq2SeqSystem(L.LightningModule):
-    def __init__(
-        self,
-        model: nn.Module,
-        *,
-        optimizer: torch.optim.Optimizer | None = None,
-        reinforce_loss: bool = False,
-    ):
-        super().__init__()
-        self.save_hyperparameters()
-        self.model = model
-        self.optimizer = optimizer
-        self.reinforce_loss = reinforce_loss
+    reinforce_loss: bool
 
     def step(
         self,
         batch: Tuple[torch.Tensor, torch.Tensor],
         batch_idx: int,
         *,
-        prefix: str = "train/",
+        log_prefix: str = "train/",
     ) -> Dict[str, torch.Tensor]:
         input, target = batch
-        logits = self.model(input)
+        logits = self(input)
 
         if isinstance(logits, tuple):
             logits, sequence = logits
@@ -41,11 +29,11 @@ class Seq2SeqSystem(L.LightningModule):
 
         loss = self.calc_loss(logits, sequence, target)
         metrics = self.log_metrics(
-            loss,
-            logits,
-            sequence,
-            target,
-            prefix=prefix,
+            loss=loss,
+            logits=logits,
+            sequence=sequence,
+            target=target,
+            prefix=log_prefix,
         )
         metrics["loss"] = loss.mean()
         return metrics
@@ -53,23 +41,20 @@ class Seq2SeqSystem(L.LightningModule):
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
     ) -> Dict[str, torch.Tensor]:
-        return self.step(batch, batch_idx, prefix="train/")
+        return self.step(batch, batch_idx, log_prefix="train/")
 
     def validation_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
     ) -> Dict[str, torch.Tensor]:
-        return self.step(batch, batch_idx, prefix="val/")
-
-    def configure_optimizers(self) -> torch.optim.Optimizer:
-        return self.optimizer or torch.optim.Adam(self.model.parameters())
+        return self.step(batch, batch_idx, log_prefix="val/")
 
     def log_metrics(
         self,
+        *,
         loss: torch.Tensor,
         logits: torch.Tensor,
         sequence: torch.Tensor,
         target: torch.Tensor,
-        *,
         prefix: str = "train/",
     ) -> Dict[str, torch.Tensor]:
         metrics: Dict[str, torch.Tensor] = {}
@@ -80,25 +65,27 @@ class Seq2SeqSystem(L.LightningModule):
         metrics[prefix + "acc_mean"] = acc_mean
         metrics[prefix + "entropy"] = entropy.mean()
 
-        max_length = target.size(-1)
-        zero_pad = len(str(max_length - 1))
-        for i in range(max_length):
+        seq_len = target.size(-1)
+        zero_pad = len(str(seq_len - 1))
+        for i in range(seq_len):
             acc_i = (sequence[:, i] == target[:, i]).float().mean()
             ent_i = entropy[:, i].mean()
             metrics[prefix + f"acc_{i:0{zero_pad}}"] = acc_i
             metrics[prefix + f"ent_{i:0{zero_pad}}"] = ent_i
 
-        grad_norms = [
-            p.grad.norm() for p in self.model.parameters() if p.grad is not None
-        ]
-        if grad_norms:
-            grad_norm = torch.stack(grad_norms).mean()
-            metrics[prefix + "grad_norm"] = grad_norm
-
         for k, v in metrics.items():
             self.log(k, v.mean(), prog_bar=k.endswith("loss"))
 
         return metrics
+
+    def on_after_backward(self):
+        norms = {}
+        for name, param in self.named_parameters():
+            if param.requires_grad and param.grad is not None:
+                norms[f"grad/l2_norm_{name}"] = param.grad.norm(p=2)
+
+        for k, v in norms.items():
+            self.log(k, v)
 
     def calc_loss(
         self, logits: torch.Tensor, sequence: torch.Tensor, target: torch.Tensor

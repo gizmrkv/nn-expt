@@ -178,9 +178,9 @@ def optimize(
     config = load_config(config_path)
 
     sampler_type = config.get("sampler", None)
-    sampler_parameters = config.get("sampler_parameters", {})
+    sampler_kwargs = config.get("sampler_kwargs", {})
     pruner_type = config.get("pruner", None)
-    pruner_parameters = config.get("pruner_parameters", {})
+    pruner_kwargs = config.get("pruner_kwargs", {})
     study_name = config.get("study_name", None)
     direction = config.get("direction", None)
     load_if_exists = config.get("load_if_exists", False)
@@ -208,8 +208,8 @@ def optimize(
     }
     sampler_type = sampler_types.get(sampler_type, None)
     if sampler_type == optuna.samplers.GridSampler:
-        sampler_parameters["search_space"] = parse_grid_search_space(search_space)
-    sampler = sampler_type(**sampler_parameters) if sampler_type else None
+        sampler_kwargs["search_space"] = parse_grid_search_space(search_space)
+    sampler = sampler_type(**sampler_kwargs) if sampler_type else None
 
     pruner_types = {
         "median": optuna.pruners.MedianPruner,
@@ -222,7 +222,7 @@ def optimize(
         "wilcoxon": optuna.pruners.WilcoxonPruner,
     }
     pruner_type = pruner_types.get(pruner_type, None)
-    pruner = pruner_type(**pruner_parameters) if pruner_type else None
+    pruner = pruner_type(**pruner_kwargs) if pruner_type else None
 
     storage = storage or optuna.storages.journal.JournalStorage(
         optuna.storages.journal.JournalFileBackend(journal_file)

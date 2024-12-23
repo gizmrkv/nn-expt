@@ -6,24 +6,24 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 
-class SequenceIdentityDataModule(L.LightningDataModule):
+class Seq2SeqDataModule(L.LightningDataModule):
     def __init__(
         self,
-        max_length: int,
+        seq_len: int,
         vocab_size: int,
         batch_size: int,
         *,
         train_ratio: float = 0.8,
         num_workers: int = 4,
-        n_repeats: int = 1,
+        num_repeats: int = 1,
     ):
         super().__init__()
-        self.max_length = max_length
+        self.seq_len = seq_len
         self.vocab_size = vocab_size
         self.batch_size = batch_size
         self.train_ratio = train_ratio
         self.num_workers = num_workers
-        self.n_repeats = n_repeats
+        self.num_repeats = num_repeats
 
         self.train_dataset: TensorDataset | None = None
         self.val_dataset: TensorDataset | None = None
@@ -31,7 +31,7 @@ class SequenceIdentityDataModule(L.LightningDataModule):
     def setup(self, stage: str | None = None):
         if stage == "fit" or stage is None:
             combinations = list(
-                itertools.product(range(self.vocab_size), repeat=self.max_length)
+                itertools.product(range(self.vocab_size), repeat=self.seq_len)
             )
             all_data = torch.tensor(combinations, dtype=torch.long)
             indexes = torch.randperm(len(all_data))
@@ -41,7 +41,7 @@ class SequenceIdentityDataModule(L.LightningDataModule):
             train_data = all_data[:train_size]
             val_data = all_data[train_size:]
 
-            train_data = torch.repeat_interleave(train_data, self.n_repeats, dim=0)
+            train_data = torch.repeat_interleave(train_data, self.num_repeats, dim=0)
 
             self.train_dataset = TensorDataset(train_data, train_data)
             self.val_dataset = TensorDataset(val_data, val_data)

@@ -8,27 +8,14 @@ from torch.distributions import Categorical
 
 
 class Seq2Seq2SeqSystem(L.LightningModule):
-    def __init__(
-        self,
-        sender: nn.Module,
-        receiver: nn.Module,
-        *,
-        optimizer: torch.optim.Optimizer | None = None,
-        sender_entropy_weight: float = 0.01,
-    ):
-        super().__init__()
-        self.save_hyperparameters()
-        self.sender = sender
-        self.receiver = receiver
-        self.optimizer = optimizer
-        self.sender_entropy_weight = sender_entropy_weight
+    sender_entropy_weight: bool
 
     def step(
         self,
         batch: Tuple[torch.Tensor, torch.Tensor],
         batch_idx: int,
         *,
-        prefix: str = "train/",
+        log_prefix: str = "train/",
     ) -> Dict[str, torch.Tensor]:
         input, target = batch
         logits_s = self.sender(input)
@@ -60,7 +47,7 @@ class Seq2Seq2SeqSystem(L.LightningModule):
             z,
             sequence,
             target,
-            prefix=prefix,
+            prefix=log_prefix,
         )
         metrics["loss"] = (loss_s + loss_r).mean()
         return metrics
@@ -68,15 +55,12 @@ class Seq2Seq2SeqSystem(L.LightningModule):
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
     ) -> Dict[str, torch.Tensor]:
-        return self.step(batch, batch_idx, prefix="train/")
+        return self.step(batch, batch_idx, log_prefix="train/")
 
     def validation_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
     ) -> Dict[str, torch.Tensor]:
-        return self.step(batch, batch_idx, prefix="val/")
-
-    def configure_optimizers(self) -> torch.optim.Optimizer:
-        return self.optimizer or torch.optim.Adam(self.parameters())
+        return self.step(batch, batch_idx, log_prefix="val/")
 
     def log_metrics(
         self,
@@ -116,24 +100,19 @@ class Seq2Seq2SeqSystem(L.LightningModule):
             metrics[prefix + f"acc_{i:0{zero_pad}}"] = acc_i
             metrics[prefix + f"receiver_ent_{i:0{zero_pad}}"] = ent_i
 
-        grad_norms_s = [
-            p.grad.norm() for p in self.sender.parameters() if p.grad is not None
-        ]
-        if grad_norms_s:
-            grad_norm_s = torch.stack(grad_norms_s).mean()
-            metrics[prefix + "sender_grad_norm"] = grad_norm_s
-
-        grad_norms_r = [
-            p.grad.norm() for p in self.receiver.parameters() if p.grad is not None
-        ]
-        if grad_norms_r:
-            grad_norm_r = torch.stack(grad_norms_r).mean()
-            metrics[prefix + "receiver_grad_norm"] = grad_norm_r
-
         for k, v in metrics.items():
             self.log(k, v.mean(), prog_bar=k.endswith("receiver_loss"))
 
         return metrics
+
+    def on_after_backward(self):
+        norms = {}
+        for name, param in self.named_parameters():
+            if param.requires_grad and param.grad is not None:
+                norms[f"grad/l2_norm_{name}"] = param.grad.norm(p=2)
+
+        for k, v in norms.items():
+            self.log(k, v)
 
     def calc_loss(
         self,

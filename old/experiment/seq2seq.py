@@ -3,11 +3,11 @@ from typing import Any, Dict, List, Literal
 
 import lightning as L
 import torch
+import wandb
 from lightning.pytorch.loggers import WandbLogger
 
-import wandb
 from nn_expt.callback import ObjectiveTracker, PositionalProbabilityHeatmap
-from nn_expt.data.sequence import SequenceIdentityDataModule
+from nn_expt.data.sequence import Seq2SeqDataModule
 from nn_expt.nn import Seq2SeqLinear, Seq2SeqRNNDecoder, Seq2SeqRNNEncoder
 from nn_expt.system.seq2seq import Seq2SeqSystem
 from nn_expt.utils import get_run_name
@@ -52,7 +52,7 @@ def run_seq2seq(
     )
 
     run_name = get_run_name()
-    log_dir = Path("logs") / run_name
+    log_dir = Path("out/logs") / run_name
     wandb_logger = WandbLogger(run_name, save_dir="./out")
 
     objective_tracker = ObjectiveTracker("val/loss")
@@ -80,13 +80,13 @@ def run_seq2seq(
         check_val_every_n_epoch=1,
         callbacks=callbacks,
     )
-    datamodule = SequenceIdentityDataModule(
+    datamodule = Seq2SeqDataModule(
         max_length,
         vocab_size,
         batch_size,
         train_ratio=train_ratio,
         num_workers=num_workers,
-        n_repeats=n_repeats,
+        num_repeats=n_repeats,
     )
     trainer.fit(system, datamodule)
 
